@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 qbitOS / ugrad.ai. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# Source: https://github.com/qbitOS/qbitos-freya
 """Generate 8-bit dithered Freya character brand assets."""
 
 from __future__ import annotations

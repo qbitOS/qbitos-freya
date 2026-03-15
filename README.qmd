@@ -29,6 +29,7 @@ Canonical FreyaUnits deployment surface for:
 - `freya-terminal.html` — terminal lane for `econ` and `expr` commands
 - `tools/freya-math-engine.js` — reusable browser/Node math engine extension
 - `tools/freya-math-cli.py` — terminal CLI for quick data-econ + expression math
+- `tools/freya-hexcast-cli.py` — 8-bit dither CLI for terminal art + character packs
 
 ## Control Envelope
 
@@ -39,6 +40,9 @@ Canonical FreyaUnits deployment surface for:
 ```bash
 uv run python tools/freya-math-cli.py econ --tb 474000000 --cost 400 --pct-a 20 --pct-b 2
 uv run python tools/freya-math-cli.py expr "sin(pi/4)^2 + cos(pi/4)^2"
+uv run python tools/freya-hexcast-cli.py render path/to/ErikaFreya.png --width 90
+uv run python tools/freya-hexcast-cli.py pack ErikaFreya path/to/ErikaFreya.png
+uv run python tools/freya-hexcast-cli.py batch
 ```
 
 ## Source
