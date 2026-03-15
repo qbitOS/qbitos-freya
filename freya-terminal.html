@@ -28,6 +28,13 @@
     .rainbow span{flex:1;}
     .r1{background:#7c3aed;}.r2{background:#06b6d4;}.r3{background:#a78bfa;}.r4{background:#22d3ee;}.r5{background:#8b5cf6;}.r6{background:#34d399;}
     .rainbow-glow{height:60px;width:100%;background:linear-gradient(180deg,rgba(124,58,237,0.08) 0%,rgba(6,182,212,0.06) 33%,rgba(139,92,246,0.04) 66%,transparent 100%);}
+    .prompt-shell{max-width:980px;margin:14px auto 0;padding:0 16px;}
+    .prompt-card{background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;padding:10px;box-shadow:0 6px 20px rgba(15,23,42,0.12);}
+    .prompt-title{font-size:12px;color:#334155;font-weight:700;margin-bottom:8px;font-family:'SF Mono',monospace;}
+    .prompt-row{display:flex;gap:8px;flex-wrap:wrap;}
+    .prompt-input{flex:1;min-width:220px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;padding:10px;font-family:'SF Mono',monospace;}
+    .prompt-chip{border:1px solid #cbd5e1;border-radius:999px;background:#eef2ff;color:#334155;padding:7px 12px;font-size:12px;cursor:pointer;}
+    .prompt-chip:hover{background:#e0e7ff;}
 
     .hero{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:44vh;padding:56px 20px 30px;text-align:center;overflow:hidden;}
     #hero-canvas{position:absolute;inset:0;z-index:0;}
@@ -71,6 +78,19 @@
 <body>
   <div class="rainbow"><span class="r1"></span><span class="r2"></span><span class="r3"></span><span class="r4"></span><span class="r5"></span><span class="r6"></span></div>
   <div class="rainbow-glow"></div>
+  <div class="prompt-shell">
+    <div class="prompt-card">
+      <div class="prompt-title">Freya Quick Prompt (convert / recipe / list / long math)</div>
+      <div class="prompt-row">
+        <input id="qa-input" class="prompt-input" placeholder="e.g. Convert 474M TB/day cost at $400 and explain in recipe steps">
+        <button class="prompt-chip" data-mode="convert">Convert</button>
+        <button class="prompt-chip" data-mode="recipe">Recipe</button>
+        <button class="prompt-chip" data-mode="list">List</button>
+        <button class="prompt-chip" data-mode="math">Long Math</button>
+        <button class="prompt-chip" id="qa-copy">Copy Prompt</button>
+      </div>
+    </div>
+  </div>
 
   <div class="hero">
     <canvas id="hero-canvas"></canvas>
@@ -92,7 +112,7 @@
     <div class="term">
       <div class="hdr">
         <span>FreyaUnits Terminal Lane</span>
-        <span>Commands: `econ tb cost [pctA] [pctB]`, `expr formula`</span>
+        <span>Commands: `econ`, `expr`, `toolchain`, `install`, `update-check`, `mistral-sdk`</span>
       </div>
       <div id="out"></div>
       <div class="row">
@@ -116,12 +136,104 @@
       const iron = new BroadcastChannel('iron-line');
       const historyBus = new BroadcastChannel('history-search');
       function write(line){ out.textContent += line + '\n'; out.scrollTop = out.scrollHeight; }
+      const qaInput = document.getElementById('qa-input');
+      const qaCopy = document.getElementById('qa-copy');
+      const qaButtons = Array.from(document.querySelectorAll('.prompt-chip[data-mode]'));
       function asNum(v,d){ const n = Number(v); return Number.isFinite(n) ? n : d; }
-      function exec(input){
+      function buildPrompt(mode, text){
+        const t = String(text || '').trim() || 'Add details here';
+        const templates = {
+          convert: 'Convert and explain this clearly with formulas, units, and final answer: ',
+          recipe: 'Turn this into numbered recipe-style instructions with short steps and checks: ',
+          list: 'Expand this into a concise checklist with grouped bullet points: ',
+          math: 'Solve this long math problem step-by-step, show assumptions and verification: '
+        };
+        return (templates[mode] || templates.convert) + t;
+      }
+      async function copyText(v){
+        try{ await navigator.clipboard.writeText(v); return true; }catch(_){ return false; }
+      }
+      async function ensureMathEngine(){
+        if(window.FreyaMathEngine) return true;
+        return new Promise((resolve)=>{
+          const s = document.createElement('script');
+          s.src = 'tools/freya-math-engine.js';
+          s.onload = () => resolve(!!window.FreyaMathEngine);
+          s.onerror = () => resolve(false);
+          document.head.appendChild(s);
+        });
+      }
+      async function checkUpdates(force){
+        const key = 'freya_last_commit_sha';
+        const lastCheckKey = 'freya_last_update_check_ts';
+        const pendingCloseKey = 'freya_pending_close_check';
+        const now = Date.now();
+        const lastTs = Number(localStorage.getItem(lastCheckKey) || 0);
+        if(!force && now - lastTs < 5 * 60 * 1000 && !localStorage.getItem(pendingCloseKey)) return;
+        try{
+          const res = await fetch('https://api.github.com/repos/qbitOS/qbitos-freya/commits/main', {cache:'no-store'});
+          if(!res.ok) throw new Error('update check failed');
+          const data = await res.json();
+          const latest = String(data.sha || '').slice(0,7);
+          const prev = localStorage.getItem(key);
+          localStorage.setItem(key, latest);
+          localStorage.setItem(lastCheckKey, String(now));
+          localStorage.removeItem(pendingCloseKey);
+          if(prev && prev !== latest) write('Update available: ' + prev + ' -> ' + latest + ' (qbitOS/qbitos-freya)');
+          else write('Update check: up to date at ' + latest);
+        }catch(_){
+          write('Update check: unavailable right now');
+        }
+      }
+      async function exec(input){
         const parts = String(input || '').trim().split(/\s+/);
         const op = parts[0];
         if(!op) return;
+        if(op === 'help'){
+          write('Commands:');
+          write('- econ tb cost [pctA] [pctB]');
+          write('- expr formula');
+          write('- toolchain');
+          write('- install <python|uv|ruff|ty|hatch|pyx|npm>');
+          write('- update-check');
+          write('- mistral-sdk');
+          return;
+        }
+        if(op === 'toolchain'){
+          write('Terminal pack: npm + python + astral uv + ruff + ty + hatch + pyx');
+          write('Use: install uv | install ruff | install hatch | install pyx');
+          write('Python workflows: uv run, uv pip, uv run ruff check ., uv run ty check .');
+          return;
+        }
+        if(op === 'install'){
+          const target = (parts[1] || '').toLowerCase();
+          const map = {
+            python: 'brew install python',
+            uv: 'curl -LsSf https://astral.sh/uv/install.sh | sh',
+            ruff: 'uv tool install ruff',
+            ty: 'uv tool install ty',
+            hatch: 'uv tool install hatch',
+            pyx: 'uv tool install pyx',
+            npm: 'brew install node && npm -v'
+          };
+          write(map[target] ? ('Install ' + target + ': ' + map[target]) : 'Usage: install <python|uv|ruff|ty|hatch|pyx|npm>');
+          return;
+        }
+        if(op === 'update-check'){
+          await checkUpdates(true);
+          return;
+        }
+        if(op === 'mistral-sdk'){
+          write('Mistral direct SDK/API quick start:');
+          write('- Model: codestral-embed');
+          write('- Env: export MISTRAL_API_KEY=...');
+          write('- Python: client.embeddings.create(model="codestral-embed", inputs=[...])');
+          write('- Options: output_dtype=(float|int8|uint8|binary|ubinary), output_dimension up to 3072');
+          write('- Docs: https://docs.mistral.ai/capabilities/embeddings/code_embeddings');
+          return;
+        }
         if(op === 'econ'){
+          if(!await ensureMathEngine()){ write('FreyaMathEngine unavailable.'); return; }
           const tb = asNum(parts[1], 0), cost = asNum(parts[2], 0), pctA = asNum(parts[3], 20), pctB = asNum(parts[4], 2);
           const payload = window.FreyaMathEngine.dataEconomics(tb, cost, pctA, pctB);
           write(JSON.stringify(payload, null, 2));
@@ -129,6 +241,7 @@
           return;
         }
         if(op === 'expr'){
+          if(!await ensureMathEngine()){ write('FreyaMathEngine unavailable.'); return; }
           const expr = parts.slice(1).join(' ');
           const res = window.FreyaMathEngine.evalExpression(expr);
           write(JSON.stringify(res, null, 2));
@@ -148,7 +261,18 @@
         let t = 0; (function draw(){ t += .016; ctx.clearRect(0,0,cvs.width,cvs.height); stars.forEach(s=>{ const fl = s.a*(0.6+0.4*Math.sin(t*s.tw+s.ph)); ctx.beginPath(); ctx.arc(s.x%cvs.width,s.y%cvs.height,s.r,0,Math.PI*2); ctx.fillStyle='rgba(167,139,250,'+fl+')'; ctx.fill(); }); requestAnimationFrame(draw); })();
       }
 
-      run.addEventListener('click', () => exec(cmd.value));
+      qaButtons.forEach((b)=>{
+        b.addEventListener('click', ()=>{
+          const v = buildPrompt(b.dataset.mode, qaInput.value);
+          qaInput.value = v;
+        });
+      });
+      qaCopy.addEventListener('click', async ()=>{
+        const ok = await copyText(qaInput.value || '');
+        qaCopy.textContent = ok ? 'Copied' : 'Copy Prompt';
+        setTimeout(()=>{ qaCopy.textContent = 'Copy Prompt'; }, 1200);
+      });
+      run.addEventListener('click', () => { exec(cmd.value); });
       cmd.addEventListener('keydown', (e) => { if (e.key === 'Enter') exec(cmd.value); });
       historyBus.postMessage({ type: 'freya-terminal-ready', timestamp: Date.now() });
       if(window.QuantumPrefixes){
@@ -157,7 +281,10 @@
         QP.onStateChange(function(){});
       }
       if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+      window.addEventListener('beforeunload', ()=>{ localStorage.setItem('freya_pending_close_check', '1'); });
+      document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden') localStorage.setItem('freya_pending_close_check', '1'); });
       initStarfield(document.getElementById('hero-canvas'), 180);
+      checkUpdates(false);
       write('Freya terminal ready.');
     })();
   </script>

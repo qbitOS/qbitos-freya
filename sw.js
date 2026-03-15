@@ -3,7 +3,7 @@
 // Source: https://github.com/qbitOS/qbitos-freya
 // Provenance: freya-launch-terminal-cache
 // DAC/Prefix/Steno/Iron-Line/Preflight/search-history controls
-const CACHE = 'freya-ugrad-ai-v4';
+const CACHE = 'freya-ugrad-ai-v5';
 const ASSETS = [
   '/',
   '/index.html',

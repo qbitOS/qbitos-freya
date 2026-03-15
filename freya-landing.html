@@ -27,6 +27,13 @@ code{font-family:'SF Mono','Fira Code',monospace;font-size:.8125em;background:#0
 .rainbow span{flex:1;}
 .r1{background:#7c3aed;}.r2{background:#06b6d4;}.r3{background:#a78bfa;}.r4{background:#22d3ee;}.r5{background:#8b5cf6;}.r6{background:#34d399;}
 .rainbow-glow{height:60px;width:100%;background:linear-gradient(180deg,rgba(124,58,237,0.08) 0%,rgba(6,182,212,0.06) 33%,rgba(139,92,246,0.04) 66%,transparent 100%);}
+.quick-prompt{max-width:1100px;margin:12px auto 0;padding:0 24px;}
+.quick-prompt-card{background:rgba(248,250,252,0.95);border:1px solid #cbd5e1;border-radius:12px;padding:10px;box-shadow:0 6px 18px rgba(15,23,42,0.12);}
+.quick-prompt-title{font-size:.6875rem;color:#334155;font-family:'SF Mono',monospace;margin-bottom:8px;}
+.quick-prompt-row{display:flex;gap:8px;flex-wrap:wrap;}
+.quick-prompt-input{flex:1;min-width:220px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;padding:10px 12px;font-family:'SF Mono',monospace;font-size:.8125rem;}
+.quick-prompt-chip{padding:8px 12px;border:1px solid #cbd5e1;border-radius:999px;background:#eef2ff;color:#334155;cursor:pointer;font-family:'SF Mono',monospace;font-size:.6875rem;}
+.quick-prompt-chip:hover{background:#e0e7ff;}
 
 .hero{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:80px 24px 60px;text-align:center;overflow:hidden;}
 #hero-canvas{position:absolute;inset:0;z-index:0;}
@@ -107,6 +114,19 @@ section h2{font-size:2rem;font-weight:700;letter-spacing:-.5px;margin-bottom:8px
 
 <div class="rainbow"><span class="r1"></span><span class="r2"></span><span class="r3"></span><span class="r4"></span><span class="r5"></span><span class="r6"></span></div>
 <div class="rainbow-glow"></div>
+<div class="quick-prompt">
+    <div class="quick-prompt-card">
+        <div class="quick-prompt-title">Freya Quick Prompt (convert / recipe / list / long math)</div>
+        <div class="quick-prompt-row">
+            <input id="quick-prompt-input" class="quick-prompt-input" placeholder="Describe what to convert or expand quickly...">
+            <button class="quick-prompt-chip" data-qmode="convert">Convert</button>
+            <button class="quick-prompt-chip" data-qmode="recipe">Recipe</button>
+            <button class="quick-prompt-chip" data-qmode="list">List</button>
+            <button class="quick-prompt-chip" data-qmode="math">Long Math</button>
+            <button class="quick-prompt-chip" id="quick-prompt-copy">Copy Prompt</button>
+        </div>
+    </div>
+</div>
 
 <div class="hero">
     <canvas id="hero-canvas"></canvas>
@@ -271,6 +291,33 @@ section h2{font-size:2rem;font-weight:700;letter-spacing:-.5px;margin-bottom:8px
 'use strict';
 (function(){
 const QP = window.QuantumPrefixes;
+const qpInput = document.getElementById('quick-prompt-input');
+const qpCopy = document.getElementById('quick-prompt-copy');
+const qpButtons = Array.from(document.querySelectorAll('.quick-prompt-chip[data-qmode]'));
+function buildQuickPrompt(mode, text){
+    const t = String(text || '').trim() || 'Add details here';
+    const templates = {
+        convert: 'Convert and explain this clearly with formulas, units, and final answer: ',
+        recipe: 'Turn this into recipe-style numbered instructions with checks: ',
+        list: 'Expand this concept into concise grouped bullet lists: ',
+        math: 'Solve this long math problem step-by-step and verify the result: '
+    };
+    return (templates[mode] || templates.convert) + t;
+}
+qpButtons.forEach((b)=>{
+    b.addEventListener('click', ()=>{
+        qpInput.value = buildQuickPrompt(b.dataset.qmode, qpInput.value);
+    });
+});
+if(qpCopy){
+    qpCopy.addEventListener('click', async ()=>{
+        try{
+            await navigator.clipboard.writeText(qpInput.value || '');
+            qpCopy.textContent = 'Copied';
+            setTimeout(()=>{ qpCopy.textContent = 'Copy Prompt'; }, 1200);
+        }catch(_){}
+    });
+}
 
 // ── Units data ──
 const c = 299792458, h = 6.62607015e-34;

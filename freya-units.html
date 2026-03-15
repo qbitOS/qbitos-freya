@@ -115,6 +115,21 @@
             font-size:1rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;
         }
         .card-title .icon{font-size:1.2em;}
+        .quick-prompt{
+            margin:0 auto 16px; padding:10px; border:1px solid var(--border); border-radius:var(--radius);
+            background:var(--bg2);
+        }
+        .quick-prompt-title{font-size:0.6875rem;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:8px;}
+        .quick-prompt-row{display:flex;gap:8px;flex-wrap:wrap;}
+        .quick-prompt-input{
+            flex:1;min-width:220px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);
+            border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:0.8125rem;
+        }
+        .quick-prompt-chip{
+            padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:var(--bg3);color:var(--text-muted);
+            cursor:pointer;font-family:var(--font-mono);font-size:0.6875rem;
+        }
+        .quick-prompt-chip:hover{border-color:var(--accent2);color:var(--cyan);background:rgba(6,182,212,0.08);}
         .card-light{
             background:#f8fafc;
             border-color:#cbd5e1;
@@ -284,11 +299,34 @@
             <button class="nav-tab" data-tab="codex">◎ Codex</button>
             <button class="nav-tab" data-tab="quantum">⚛ Quantum Nav</button>
         </nav>
+        <div class="quick-prompt">
+            <div class="quick-prompt-title">Freya Quick Prompt (convert / recipe / list / long math)</div>
+            <div class="quick-prompt-row">
+                <input id="quick-prompt-input" class="quick-prompt-input" placeholder="Describe what to convert or expand quickly...">
+                <button class="quick-prompt-chip" data-qmode="convert">Convert</button>
+                <button class="quick-prompt-chip" data-qmode="recipe">Recipe</button>
+                <button class="quick-prompt-chip" data-qmode="list">List</button>
+                <button class="quick-prompt-chip" data-qmode="math">Long Math</button>
+                <button class="quick-prompt-chip" id="quick-prompt-copy">Copy Prompt</button>
+            </div>
+        </div>
 
         <!-- ════════════════════════════════════════════ -->
         <!-- SECTION 1: CONVERTER                        -->
         <!-- ════════════════════════════════════════════ -->
         <div class="section active" id="sec-convert">
+            <div class="card">
+                <div class="card-title"><span class="icon">🧰</span> Terminal Pack + Mistral SDK Lane</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:8px;">
+                    Use the Freya terminal pack for npm/python/uv/ruff/ty/hatch/pyx workflows, plus direct SDK references for Mistral code embeddings.
+                </div>
+                <div class="quick-row">
+                    <button class="quick-btn" id="open-terminal-lane">Open Terminal Lane</button>
+                    <button class="quick-btn" id="repo-update-check">Check Updates</button>
+                    <a class="quick-btn" href="https://docs.mistral.ai/capabilities/embeddings/code_embeddings" target="_blank" style="text-decoration:none;">Mistral Code Embeddings</a>
+                </div>
+                <div style="font-size:0.75rem;color:var(--text-muted);" id="repo-update-status">Update status: idle</div>
+            </div>
             <!-- Category selector -->
             <div class="card">
                 <div class="card-title"><span class="icon">📐</span> Unit Category</div>
@@ -549,6 +587,65 @@ document.getElementById('nav-tabs').addEventListener('click', e=>{
         requestAnimationFrame(()=>{drawCodexChart();buildCodexPanels();});
     }
 });
+const qpInput = document.getElementById('quick-prompt-input');
+const qpCopy = document.getElementById('quick-prompt-copy');
+const qpButtons = Array.from(document.querySelectorAll('.quick-prompt-chip[data-qmode]'));
+function buildQuickPrompt(mode, text){
+    const t = String(text || '').trim() || 'Add details here';
+    const templates = {
+        convert: 'Convert and explain this clearly with formulas, units, and final answer: ',
+        recipe: 'Turn this into recipe-style numbered instructions with checks: ',
+        list: 'Expand this concept into concise grouped bullet lists: ',
+        math: 'Solve this long math problem step-by-step and verify the result: '
+    };
+    return (templates[mode] || templates.convert) + t;
+}
+qpButtons.forEach((b)=>{
+    b.addEventListener('click', ()=>{
+        qpInput.value = buildQuickPrompt(b.dataset.qmode, qpInput.value);
+    });
+});
+if(qpCopy){
+    qpCopy.addEventListener('click', async ()=>{
+        try{
+            await navigator.clipboard.writeText(qpInput.value || '');
+            qpCopy.textContent = 'Copied';
+            setTimeout(()=>{ qpCopy.textContent = 'Copy Prompt'; }, 1200);
+        }catch(_){}
+    });
+}
+const openTerminalLaneBtn = document.getElementById('open-terminal-lane');
+const repoUpdateCheckBtn = document.getElementById('repo-update-check');
+const repoUpdateStatus = document.getElementById('repo-update-status');
+if(openTerminalLaneBtn){
+    openTerminalLaneBtn.addEventListener('click', ()=>{
+        window.location.href = 'freya-terminal.html';
+    });
+}
+async function checkRepoUpdate(){
+    if(!repoUpdateStatus) return;
+    repoUpdateStatus.textContent = 'Update status: checking...';
+    try{
+        const res = await fetch('https://api.github.com/repos/qbitOS/qbitos-freya/commits/main', {cache:'no-store'});
+        if(!res.ok) throw new Error('request failed');
+        const data = await res.json();
+        const sha = String(data.sha || '').slice(0,7);
+        const prev = localStorage.getItem('freya_last_commit_sha_units');
+        localStorage.setItem('freya_last_commit_sha_units', sha);
+        if(prev && prev !== sha) repoUpdateStatus.textContent = 'Update status: new build available (' + prev + ' → ' + sha + ')';
+        else repoUpdateStatus.textContent = 'Update status: up to date at ' + sha;
+    }catch(_){
+        repoUpdateStatus.textContent = 'Update status: unavailable right now';
+    }
+}
+if(repoUpdateCheckBtn){
+    repoUpdateCheckBtn.addEventListener('click', ()=>{ checkRepoUpdate(); });
+}
+window.addEventListener('beforeunload', ()=>{ localStorage.setItem('freya_units_check_on_next_load', '1'); });
+if(localStorage.getItem('freya_units_check_on_next_load')){
+    localStorage.removeItem('freya_units_check_on_next_load');
+    checkRepoUpdate();
+}
 
 /* ═══════════════════════════════════════════════════
    UNIT DATA — 8 categories, 70+ units
