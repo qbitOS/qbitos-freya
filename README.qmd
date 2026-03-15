@@ -1,0 +1,24 @@
+# qbitos{freya} — FreyaUnits
+
+Canonical FreyaUnits deployment surface for:
+
+- `freya.ugrad.ai`
+- `freya.qbitos.ai`
+
+## Runtime Stack
+
+- `quantum-prefixes.js`
+- `qbit-dac.js`
+- `qbit-steno.js`
+- `qbit-preflight.js`
+- `history-search-engine.js`
+- `sw.js`
+
+## Control Envelope
+
+`DAC/Prefix/Steno/Iron-Line/Preflight/search-history controls`
+
+## Source
+
+Primary source app evolves in `qbitOS/uvspeed` and mirrored deploy packaging is
+published via `qbitOS/uvmis-evolution-agent`.

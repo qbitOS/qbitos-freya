@@ -1,0 +1,1599 @@
+<!-- beyondBINARY quantum-prefixed | uvspeed | {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1} -->
+<!-- Author: Tad R. Ericson | Licensing: license@qbitos.ai | license@ugrad.ai -->
+<!-- Copyright (c) 2026 qbitOS / ugrad.ai. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Source: https://github.com/qbitOS/uvmis-evolution-agent -->
+<!-- Provenance: freya-domain-launch -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreyaUnits — Galactic Precision Converter</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#050810">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- KaTeX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.js"></script>
+    <!-- mathjs -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjs@13/lib/browser/math.min.js"></script>
+    <!-- Plotly -->
+    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2/plotly.min.js"></script>
+    <script src="quantum-prefixes.js"></script>
+    <script src="qbit-dac.js"></script>
+    <script src="qbit-steno.js"></script>
+    <script src="qbit-preflight.js"></script>
+    <script src="history-search-engine.js"></script>
+    <style>
+        /* ===== GALACTIC DESIGN SYSTEM ===== */
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        :root{
+            --bg:#050810;--bg2:#0a0f1a;--bg3:#101828;--bg4:#1a2340;
+            --border:#1e2d4a;--border-glow:#2563eb33;
+            --text:#e2e8f0;--text-muted:#64748b;--text-dim:#475569;
+            --accent:#7c3aed;--accent2:#06b6d4;--accent3:#8b5cf6;
+            --cyan:#22d3ee;--purple:#a78bfa;--gold:#fbbf24;--rose:#fb7185;
+            --green:#34d399;--orange:#f97316;
+            --font-sans:'Inter','SF Pro Display',-apple-system,BlinkMacSystemFont,sans-serif;
+            --font-mono:'JetBrains Mono','SF Mono','Fira Code',monospace;
+            --radius:12px;--radius-sm:8px;--radius-xs:6px;
+        }
+        html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+        body{
+            background:var(--bg);color:var(--text);font-family:var(--font-sans);
+            min-height:100vh;overflow-x:hidden;position:relative;
+            font-size:15px;line-height:1.6;
+        }
+        /* Starfield canvas */
+        #starfield{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;}
+        /* Nebula glow overlays */
+        .nebula{position:fixed;border-radius:50%;filter:blur(120px);opacity:0.12;pointer-events:none;z-index:0;}
+        .nebula-1{width:600px;height:600px;background:radial-gradient(circle,#7c3aed,transparent);top:-10%;left:-5%;}
+        .nebula-2{width:500px;height:500px;background:radial-gradient(circle,#06b6d4,transparent);bottom:-5%;right:-8%;}
+        .nebula-3{width:400px;height:400px;background:radial-gradient(circle,#8b5cf6,transparent);top:40%;left:50%;}
+
+        /* Layout */
+        .app{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:20px 24px 60px;}
+
+        /* Header — SpaceX mission control style */
+        .mission-header{
+            text-align:center;padding:48px 20px 36px;position:relative;
+        }
+        .mission-logo{
+            font-size:3rem;font-weight:800;letter-spacing:-0.03em;
+            background:linear-gradient(135deg,#7c3aed 0%,#06b6d4 50%,#a78bfa 100%);
+            -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+            background-clip:text;
+        }
+        .mission-sub{
+            font-size:1rem;color:var(--text-muted);margin-top:8px;letter-spacing:0.05em;
+            text-transform:uppercase;font-weight:500;
+        }
+        .mission-tagline{
+            font-size:0.8125rem;color:var(--text-dim);margin-top:6px;font-style:italic;
+        }
+        .mission-status{
+            display:inline-flex;align-items:center;gap:8px;margin-top:16px;
+            padding:6px 16px;border:1px solid var(--border);border-radius:20px;
+            font-size:0.75rem;color:var(--green);background:rgba(52,211,153,0.06);
+        }
+        .mission-status .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+        @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+        /* Navigation tabs */
+        .nav-tabs{
+            display:flex;gap:4px;justify-content:center;flex-wrap:wrap;
+            margin:0 auto 32px;padding:4px;background:var(--bg2);border-radius:var(--radius);
+            border:1px solid var(--border);max-width:700px;
+        }
+        .nav-tab{
+            padding:8px 18px;border-radius:var(--radius-sm);border:none;
+            background:transparent;color:var(--text-muted);cursor:pointer;
+            font-family:var(--font-sans);font-size:0.8125rem;font-weight:500;
+            transition:all 0.2s;
+        }
+        .nav-tab:hover{color:var(--text);background:var(--bg3);}
+        .nav-tab.active{background:var(--accent);color:#fff;}
+
+        /* Section panels */
+        .section{display:none;animation:fadeIn 0.3s ease;}
+        .section.active{display:block;}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+        /* Cards */
+        .card{
+            background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+            padding:24px;margin-bottom:20px;position:relative;overflow:hidden;
+        }
+        .card::before{
+            content:'';position:absolute;top:0;left:0;right:0;height:1px;
+            background:linear-gradient(90deg,transparent,var(--accent2),transparent);opacity:0.3;
+        }
+        .card-title{
+            font-size:1rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;
+        }
+        .card-title .icon{font-size:1.2em;}
+
+        /* Converter grid */
+        .convert-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:end;}
+        .convert-label{font-size:0.6875rem;color:var(--purple);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;}
+        .convert-label.to-label{color:var(--cyan);}
+        input[type="number"],select,.calc-input{
+            width:100%;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);
+            border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);
+            font-size:0.9375rem;outline:none;transition:border-color 0.2s;
+        }
+        input:focus,select:focus,.calc-input:focus{border-color:var(--accent2);}
+        .convert-result{
+            padding:12px 16px;background:var(--bg3);border:1px solid rgba(124,58,237,0.25);
+            border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:1.125rem;
+            color:var(--purple);font-weight:700;min-height:44px;display:flex;align-items:center;
+        }
+        .swap-btn{
+            width:44px;height:44px;border-radius:50%;border:1px solid var(--border);
+            background:var(--bg3);color:var(--cyan);cursor:pointer;font-size:1.2rem;
+            transition:all 0.2s;display:flex;align-items:center;justify-content:center;
+        }
+        .swap-btn:hover{background:var(--bg4);border-color:var(--cyan);transform:rotate(180deg);}
+
+        /* Category pills */
+        .cat-pills{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0;}
+        .cat-pill{
+            padding:4px 12px;border-radius:20px;font-size:0.6875rem;font-weight:600;
+            cursor:pointer;border:1px solid transparent;transition:all 0.2s;opacity:0.7;
+        }
+        .cat-pill:hover,.cat-pill.active{opacity:1;border-color:currentColor;}
+
+        /* Quick buttons */
+        .quick-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:16px 0;}
+        .quick-btn{
+            padding:5px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);
+            background:var(--bg3);color:var(--text-muted);cursor:pointer;font-family:var(--font-mono);
+            font-size:0.75rem;transition:all 0.15s;
+        }
+        .quick-btn:hover{border-color:var(--accent2);color:var(--cyan);background:rgba(6,182,212,0.08);}
+        .data-lane-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;margin-top:12px;}
+        .data-lane-metrics{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:8px;margin-top:12px;}
+        .metric-chip{
+            background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);
+            padding:10px 12px;font-family:var(--font-mono);font-size:0.75rem;
+            display:flex;justify-content:space-between;align-items:center;gap:8px;
+        }
+        .metric-chip b{color:var(--cyan);}
+
+        /* Table grid */
+        .conv-table{
+            display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;
+            max-height:320px;overflow-y:auto;padding-right:4px;
+        }
+        .conv-table::-webkit-scrollbar{width:4px;}
+        .conv-table::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+        .conv-row{
+            display:flex;justify-content:space-between;align-items:center;
+            padding:6px 10px;border-radius:var(--radius-xs);background:var(--bg);
+            font-family:var(--font-mono);font-size:0.75rem;
+        }
+        .conv-row.highlight{background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);}
+
+        /* Canvas containers */
+        .canvas-wrap{background:var(--bg);border-radius:var(--radius-sm);padding:2px;overflow:hidden;}
+        canvas{display:block;width:100%;border-radius:var(--radius-sm);}
+
+        /* Celestial chart */
+        .celestial-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:16px;}
+        .cel-card{
+            padding:10px;background:var(--bg);border-radius:var(--radius-sm);text-align:center;
+            border:1px solid var(--border);
+        }
+        .cel-card .planet{font-size:1.5rem;}
+        .cel-card .name{font-size:0.75rem;font-weight:600;margin:4px 0 2px;}
+        .cel-card .data{font-size:0.625rem;color:var(--text-muted);font-family:var(--font-mono);}
+
+        /* Calculator */
+        .calc-display{
+            padding:16px 20px;background:var(--bg);border-radius:var(--radius-sm);
+            margin-bottom:16px;border:1px solid var(--border);text-align:right;
+        }
+        .calc-expr{font-size:0.8125rem;color:var(--text-muted);min-height:20px;font-family:var(--font-mono);}
+        .calc-result{font-size:1.75rem;font-weight:700;color:var(--cyan);font-family:var(--font-mono);min-height:40px;word-break:break-all;}
+        .calc-latex{margin-top:8px;min-height:24px;}
+        .calc-keys{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+        .calc-key{
+            padding:12px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);
+            background:var(--bg3);color:var(--text);cursor:pointer;font-family:var(--font-mono);
+            font-size:0.875rem;text-align:center;transition:all 0.15s;
+        }
+        .calc-key:hover{background:var(--bg4);border-color:var(--accent2);}
+        .calc-key.op{color:var(--cyan);}
+        .calc-key.fn{color:var(--purple);font-size:0.75rem;}
+        .calc-key.eq{background:var(--accent);color:#fff;border-color:var(--accent);}
+        .calc-key.eq:hover{background:var(--accent3);}
+        .calc-key.wide{grid-column:span 2;}
+
+        /* Geo / Quantum nav */
+        .geo-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+        .quantum-vis{position:relative;height:300px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border);overflow:hidden;}
+        .geo-data{font-family:var(--font-mono);font-size:0.75rem;}
+        .geo-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);}
+        .geo-row:last-child{border:none;}
+        .geo-label{color:var(--text-muted);}
+        .geo-value{color:var(--cyan);font-weight:600;}
+        .prefix-cell{
+            display:inline-flex;align-items:center;justify-content:center;
+            width:32px;height:32px;border-radius:var(--radius-xs);font-family:var(--font-mono);
+            font-size:0.6875rem;font-weight:700;border:1px solid var(--border);cursor:pointer;
+            transition:all 0.2s;
+        }
+        .prefix-cell:hover{transform:scale(1.15);border-color:var(--cyan);}
+
+        /* Footer */
+        .footer{text-align:center;padding:40px 0 20px;font-size:0.6875rem;color:var(--text-dim);}
+        .footer a{color:var(--purple);text-decoration:none;}
+        .footer a:hover{text-decoration:underline;}
+
+        /* Responsive */
+        @media(max-width:768px){
+            .convert-grid{grid-template-columns:1fr;gap:10px;}
+            .data-lane-grid,.data-lane-metrics{grid-template-columns:1fr;}
+            .geo-grid{grid-template-columns:1fr;}
+            .calc-keys{grid-template-columns:repeat(4,1fr);}
+            .mission-logo{font-size:2rem;}
+            .app{padding:12px 14px 40px;}
+        }
+    </style>
+</head>
+<body>
+    <canvas id="starfield"></canvas>
+    <div class="nebula nebula-1"></div>
+    <div class="nebula nebula-2"></div>
+    <div class="nebula nebula-3"></div>
+
+    <div class="app">
+        <!-- ═══ MISSION HEADER ═══ -->
+        <header class="mission-header">
+            <div class="mission-logo">FreyaUnits</div>
+            <div class="mission-sub">Galactic Precision Converter &amp; Computation Engine</div>
+            <div class="mission-tagline">"A father's love, measured in infinite precision" — ..luvuFREYAbot</div>
+            <div class="mission-status"><span class="dot"></span> SYSTEMS NOMINAL &middot; <span id="math-stack-status">Loading&hellip;</span></div>
+        </header>
+
+        <!-- ═══ NAVIGATION ═══ -->
+        <nav class="nav-tabs" id="nav-tabs">
+            <button class="nav-tab active" data-tab="convert">⇄ Convert</button>
+            <button class="nav-tab" data-tab="calc">∫ Calculator</button>
+            <button class="nav-tab" data-tab="celestial">✦ Celestial</button>
+            <button class="nav-tab" data-tab="codex">◎ Codex</button>
+            <button class="nav-tab" data-tab="quantum">⚛ Quantum Nav</button>
+        </nav>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 1: CONVERTER                        -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section active" id="sec-convert">
+            <!-- Category selector -->
+            <div class="card">
+                <div class="card-title"><span class="icon">📐</span> Unit Category</div>
+                <div class="cat-pills" id="cat-pills"></div>
+            </div>
+
+            <!-- Main converter -->
+            <div class="card">
+                <div class="card-title"><span class="icon">⇄</span> Precision Converter</div>
+                <div class="convert-grid">
+                    <div>
+                        <label class="convert-label">FROM</label>
+                        <input type="number" id="conv-val" value="1" step="any">
+                        <select id="conv-from" style="margin-top:8px;"></select>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:center;padding-bottom:8px;">
+                        <button class="swap-btn" id="conv-swap" title="Swap units">⇄</button>
+                    </div>
+                    <div>
+                        <label class="convert-label to-label">TO</label>
+                        <div class="convert-result" id="conv-result">—</div>
+                        <select id="conv-to" style="margin-top:8px;"></select>
+                    </div>
+                </div>
+                <div class="quick-row" id="conv-quick"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="icon">⚡</span> Data Economics Quick Lane</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:6px;">
+                    Fast-operate daily data cost, % slices, and TB↔EB↔ZB conversions without leaving Freya.
+                </div>
+                <div class="quick-row">
+                    <button class="quick-btn" id="lane-preset-global">Use 474M TB/day</button>
+                    <button class="quick-btn" id="lane-preset-cost">Use $400/TB</button>
+                    <button class="quick-btn" id="lane-copy-json">Copy JSON</button>
+                </div>
+                <div class="data-lane-grid">
+                    <div>
+                        <label class="convert-label">TB per day</label>
+                        <input type="number" id="lane-tb" value="474000000" step="1">
+                    </div>
+                    <div>
+                        <label class="convert-label">Cost per TB ($)</label>
+                        <input type="number" id="lane-cost" value="400" step="any">
+                    </div>
+                    <div>
+                        <label class="convert-label">% A</label>
+                        <input type="number" id="lane-pct-a" value="20" step="any">
+                    </div>
+                    <div>
+                        <label class="convert-label">% B</label>
+                        <input type="number" id="lane-pct-b" value="2" step="any">
+                    </div>
+                </div>
+                <div class="data-lane-metrics">
+                    <div class="metric-chip"><span>Total/day</span><b id="lane-total">$0</b></div>
+                    <div class="metric-chip"><span>A slice</span><b id="lane-slice-a">$0</b></div>
+                    <div class="metric-chip"><span>B slice</span><b id="lane-slice-b">$0</b></div>
+                    <div class="metric-chip"><span>Volume</span><b id="lane-volume">0 TB</b></div>
+                </div>
+            </div>
+
+            <!-- Log scale visualization -->
+            <div class="card">
+                <div class="card-title"><span class="icon">📏</span> Logarithmic Scale</div>
+                <div class="canvas-wrap"><canvas id="scale-canvas" width="1100" height="80"></canvas></div>
+            </div>
+
+            <!-- Full conversion table -->
+            <div class="card">
+                <div class="card-title"><span class="icon">📋</span> Conversion Table</div>
+                <div class="conv-table" id="conv-table"></div>
+            </div>
+
+            <!-- Quantum/wave properties -->
+            <div class="card">
+                <div class="card-title"><span class="icon">⚛</span> Quantum &amp; Wave Properties</div>
+                <div id="quantum-props" style="font-family:var(--font-mono);font-size:0.8125rem;"></div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 2: CALCULATOR                       -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section" id="sec-calc">
+            <div class="card">
+                <div class="card-title"><span class="icon">∫</span> Scientific Calculator <span style="font-size:0.625rem;color:var(--text-muted);margin-left:auto;">mathjs + KaTeX</span></div>
+                <div class="calc-display">
+                    <div class="calc-expr" id="calc-expr"></div>
+                    <div class="calc-result" id="calc-result">0</div>
+                    <div class="calc-latex" id="calc-latex"></div>
+                </div>
+                <input type="text" class="calc-input" id="calc-input" placeholder="Type expression: sin(pi/4), det([1,2;3,4]), integrate x^2 dx..." style="margin-bottom:12px;">
+                <div class="calc-keys" id="calc-keys"></div>
+            </div>
+
+            <!-- Plotly chart -->
+            <div class="card">
+                <div class="card-title"><span class="icon">📈</span> Function Plotter</div>
+                <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                    <input type="text" class="calc-input" id="plot-expr" placeholder="sin(x) * exp(-x/5)" style="flex:1;min-width:200px;">
+                    <input type="number" class="calc-input" id="plot-min" value="-10" style="width:80px;">
+                    <input type="number" class="calc-input" id="plot-max" value="10" style="width:80px;">
+                    <button class="swap-btn" id="plot-btn" title="Plot" style="border-radius:var(--radius-sm);width:auto;padding:0 16px;font-size:0.8125rem;">▶ Plot</button>
+                </div>
+                <div id="plot-chart" style="height:350px;border-radius:var(--radius-sm);overflow:hidden;"></div>
+            </div>
+
+            <!-- Equation solver -->
+            <div class="card">
+                <div class="card-title"><span class="icon">🔣</span> Equation Reference</div>
+                <div id="eq-ref" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;"></div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 3: CELESTIAL                        -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section" id="sec-celestial">
+            <div class="card">
+                <div class="card-title"><span class="icon">✦</span> Star Chart <span style="font-size:0.625rem;color:var(--text-muted);margin-left:auto;" id="cel-time"></span></div>
+                <div class="canvas-wrap"><canvas id="star-canvas" width="800" height="500"></canvas></div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="icon">🪐</span> Solar System — Current Positions</div>
+                <div class="celestial-info" id="planet-grid"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="icon">🌌</span> Deep Sky Data</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;font-family:var(--font-mono);font-size:0.75rem;" id="deep-sky"></div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 3B: CODEX — BLOCH ASTROLOGY CHART   -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section" id="sec-codex">
+            <div class="card">
+                <div class="card-title"><span class="icon">◎</span> Quantum Codex — Bloch Astrology <span style="font-size:0.625rem;color:var(--text-muted);margin-left:auto;" id="codex-time"></span></div>
+                <div class="canvas-wrap" style="position:relative"><canvas id="codex-canvas" width="800" height="800"></canvas></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;justify-content:center">
+                    <button class="btn" id="codex-natal" style="font-size:0.6875rem">Natal Chart</button>
+                    <button class="btn" id="codex-transit" style="font-size:0.6875rem">Transit Now</button>
+                    <button class="btn" id="codex-gates" style="font-size:0.6875rem">Gate Map</button>
+                    <button class="btn" id="codex-sync" style="font-size:0.6875rem">Sync Globe</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><span class="icon">⊕</span> Houses — Iron Line Mapping</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px" id="codex-houses"></div>
+            </div>
+            <div class="card">
+                <div class="card-title"><span class="icon">⚛</span> Planetary Positions — Quantum Gate Assignment</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px" id="codex-planets"></div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 4: QUANTUM NAV                      -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section" id="sec-quantum">
+            <div class="card">
+                <div class="card-title"><span class="icon">⚛</span> Quantum Prefix Navigation <span style="font-size:0.625rem;color:var(--text-muted);margin-left:auto;" id="q-pos">[0, 0, 0]</span></div>
+                <div class="geo-grid">
+                    <div>
+                        <div class="canvas-wrap"><canvas id="q-cube" width="400" height="300"></canvas></div>
+                        <div style="display:grid;grid-template-columns:repeat(11,1fr);gap:4px;margin-top:12px;" id="prefix-grid"></div>
+                    </div>
+                    <div>
+                        <div class="canvas-wrap"><canvas id="q-geo" width="400" height="300"></canvas></div>
+                        <div class="geo-data" id="geo-data" style="margin-top:12px;">
+                            <div class="geo-row"><span class="geo-label">Latitude</span><span class="geo-value" id="geo-lat">—</span></div>
+                            <div class="geo-row"><span class="geo-label">Longitude</span><span class="geo-value" id="geo-lng">—</span></div>
+                            <div class="geo-row"><span class="geo-label">Altitude</span><span class="geo-value" id="geo-alt">—</span></div>
+                            <div class="geo-row"><span class="geo-label">Accuracy</span><span class="geo-value" id="geo-acc">—</span></div>
+                            <div class="geo-row"><span class="geo-label">Quantum Position</span><span class="geo-value" id="geo-qpos">[0, 0, 0]</span></div>
+                            <div class="geo-row"><span class="geo-label">Prefix Gate</span><span class="geo-value" id="geo-gate">H (Hadamard)</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="icon">🗺</span> Geo-Quantum Cell Map</div>
+                <div class="canvas-wrap"><canvas id="geo-map" width="1100" height="400"></canvas></div>
+                <div style="font-size:0.6875rem;color:var(--text-muted);margin-top:8px;text-align:center;">Click cells to navigate quantum space. Position maps to celestial coordinates via RA/Dec projection.</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            FreyaUnits v4.4 &middot; <a href="https://uvmis.ugrad.ai/modellab/">Model Lab</a> &middot; <a href="https://uvmis.ugrad.ai/compliance/">Compliance</a> &middot; qbitOS / ugrad.ai
+        </footer>
+    </div>
+
+<script>
+// beyondBINARY quantum-prefixed | uvspeed | {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1}
+(function(){
+'use strict';
+
+/* ═══════════════════════════════════════════════════
+   STARFIELD
+   ═══════════════════════════════════════════════════ */
+const sfCanvas = document.getElementById('starfield');
+const sfCtx = sfCanvas.getContext('2d');
+let stars = [];
+function initStarfield(){
+    sfCanvas.width = window.innerWidth;
+    sfCanvas.height = window.innerHeight;
+    stars = Array.from({length:400}, () => ({
+        x: Math.random()*sfCanvas.width,
+        y: Math.random()*sfCanvas.height,
+        r: Math.random()*1.5+0.3,
+        a: Math.random()*0.8+0.2,
+        s: Math.random()*0.3+0.05,
+    }));
+}
+function drawStarfield(){
+    sfCtx.clearRect(0,0,sfCanvas.width,sfCanvas.height);
+    const t = Date.now()*0.001;
+    stars.forEach(s=>{
+        const flicker = s.a + Math.sin(t*s.s*2+s.x)*0.15;
+        sfCtx.beginPath();
+        sfCtx.arc(s.x,s.y,s.r,0,Math.PI*2);
+        sfCtx.fillStyle=`rgba(200,210,255,${Math.max(0,flicker)})`;
+        sfCtx.fill();
+    });
+    requestAnimationFrame(drawStarfield);
+}
+initStarfield(); drawStarfield();
+window.addEventListener('resize',initStarfield);
+
+/* ═══════════════════════════════════════════════════
+   NAVIGATION
+   ═══════════════════════════════════════════════════ */
+document.getElementById('nav-tabs').addEventListener('click', e=>{
+    const tab = e.target.closest('.nav-tab');
+    if(!tab) return;
+    document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    tab.classList.add('active');
+    const secId='sec-'+tab.dataset.tab;
+    document.getElementById(secId).classList.add('active');
+    // Redraw quantum canvases when tab becomes visible (canvas can't draw while display:none)
+    if(tab.dataset.tab==='quantum'&&typeof drawQuantumCube==='function'){
+        requestAnimationFrame(()=>{
+            drawQuantumCube();
+            if(typeof drawGeoQuantumMap==='function') drawGeoQuantumMap();
+            if(typeof drawGeoVis==='function') drawGeoVis(lastGeoLat,lastGeoLng);
+        });
+    }
+    if(tab.dataset.tab==='codex'&&typeof drawCodexChart==='function'){
+        requestAnimationFrame(()=>{drawCodexChart();buildCodexPanels();});
+    }
+});
+
+/* ═══════════════════════════════════════════════════
+   UNIT DATA — 8 categories, 70+ units
+   ═══════════════════════════════════════════════════ */
+const CATEGORIES = {
+    length: {name:'Length',icon:'📏',color:'#a78bfa'},
+    mass: {name:'Mass',icon:'⚖',color:'#f97316'},
+    temperature: {name:'Temperature',icon:'🌡',color:'#fb7185'},
+    speed: {name:'Speed',icon:'🚀',color:'#22d3ee'},
+    energy: {name:'Energy',icon:'⚡',color:'#fbbf24'},
+    pressure: {name:'Pressure',icon:'🔵',color:'#3b82f6'},
+    time: {name:'Time',icon:'⏱',color:'#34d399'},
+    data: {name:'Data',icon:'💾',color:'#8b5cf6'},
+    calibration: {name:'Calibration Legend',icon:'🧭',color:'#06b6d4'},
+};
+const UNITS = [
+    // Length
+    {sym:'ℓp',name:'Planck Length',factor:1.616255e-35,cat:'length'},
+    {sym:'fm',name:'Femtometer',factor:1e-15,cat:'length'},
+    {sym:'pm',name:'Picometer',factor:1e-12,cat:'length'},
+    {sym:'Å',name:'Angstrom',factor:1e-10,cat:'length'},
+    {sym:'nm',name:'Nanometer',factor:1e-9,cat:'length'},
+    {sym:'µm',name:'Micrometer',factor:1e-6,cat:'length'},
+    {sym:'mm',name:'Millimeter',factor:1e-3,cat:'length'},
+    {sym:'cm',name:'Centimeter',factor:1e-2,cat:'length'},
+    {sym:'in',name:'Inch',factor:0.0254,cat:'length'},
+    {sym:'ft',name:'Foot',factor:0.3048,cat:'length'},
+    {sym:'yd',name:'Yard',factor:0.9144,cat:'length'},
+    {sym:'m',name:'Meter',factor:1,cat:'length'},
+    {sym:'km',name:'Kilometer',factor:1e3,cat:'length'},
+    {sym:'mi',name:'Mile',factor:1609.34,cat:'length'},
+    {sym:'NM',name:'Nautical Mile',factor:1852,cat:'length'},
+    {sym:'AU',name:'Astronomical Unit',factor:1.496e11,cat:'length'},
+    {sym:'ly',name:'Light Year',factor:9.461e15,cat:'length'},
+    {sym:'pc',name:'Parsec',factor:3.086e16,cat:'length'},
+    // Mass
+    {sym:'me',name:'Electron Mass',factor:9.109e-31,cat:'mass'},
+    {sym:'u',name:'Atomic Mass Unit',factor:1.661e-27,cat:'mass'},
+    {sym:'µg',name:'Microgram',factor:1e-9,cat:'mass'},
+    {sym:'mg',name:'Milligram',factor:1e-6,cat:'mass'},
+    {sym:'g',name:'Gram',factor:1e-3,cat:'mass'},
+    {sym:'oz',name:'Ounce',factor:0.0283495,cat:'mass'},
+    {sym:'lb',name:'Pound',factor:0.453592,cat:'mass'},
+    {sym:'kg',name:'Kilogram',factor:1,cat:'mass'},
+    {sym:'st',name:'Stone',factor:6.35029,cat:'mass'},
+    {sym:'t',name:'Metric Ton',factor:1000,cat:'mass'},
+    {sym:'M☉',name:'Solar Mass',factor:1.989e30,cat:'mass'},
+    // Temperature (special: not multiplicative)
+    {sym:'K',name:'Kelvin',factor:1,cat:'temperature',offset:0},
+    {sym:'°C',name:'Celsius',factor:1,cat:'temperature',offset:273.15},
+    {sym:'°F',name:'Fahrenheit',factor:5/9,cat:'temperature',offset:255.372},
+    {sym:'°R',name:'Rankine',factor:5/9,cat:'temperature',offset:0},
+    // Speed
+    {sym:'mm/s',name:'mm per second',factor:0.001,cat:'speed'},
+    {sym:'m/s',name:'Meters/sec',factor:1,cat:'speed'},
+    {sym:'km/h',name:'km per hour',factor:1/3.6,cat:'speed'},
+    {sym:'mph',name:'Miles/hour',factor:0.44704,cat:'speed'},
+    {sym:'kn',name:'Knots',factor:0.514444,cat:'speed'},
+    {sym:'Ma',name:'Mach',factor:343,cat:'speed'},
+    {sym:'c',name:'Speed of Light',factor:299792458,cat:'speed'},
+    // Energy
+    {sym:'eV',name:'Electron Volt',factor:1.602e-19,cat:'energy'},
+    {sym:'J',name:'Joule',factor:1,cat:'energy'},
+    {sym:'cal',name:'Calorie',factor:4.184,cat:'energy'},
+    {sym:'kcal',name:'Kilocalorie',factor:4184,cat:'energy'},
+    {sym:'kWh',name:'Kilowatt-hour',factor:3.6e6,cat:'energy'},
+    {sym:'BTU',name:'BTU',factor:1055.06,cat:'energy'},
+    {sym:'MeV',name:'Mega eV',factor:1.602e-13,cat:'energy'},
+    {sym:'GeV',name:'Giga eV',factor:1.602e-10,cat:'energy'},
+    // Pressure
+    {sym:'Pa',name:'Pascal',factor:1,cat:'pressure'},
+    {sym:'hPa',name:'Hectopascal',factor:100,cat:'pressure'},
+    {sym:'kPa',name:'Kilopascal',factor:1000,cat:'pressure'},
+    {sym:'bar',name:'Bar',factor:1e5,cat:'pressure'},
+    {sym:'atm',name:'Atmosphere',factor:101325,cat:'pressure'},
+    {sym:'psi',name:'PSI',factor:6894.76,cat:'pressure'},
+    {sym:'mmHg',name:'mmHg (Torr)',factor:133.322,cat:'pressure'},
+    // Time
+    {sym:'ns',name:'Nanosecond',factor:1e-9,cat:'time'},
+    {sym:'µs',name:'Microsecond',factor:1e-6,cat:'time'},
+    {sym:'ms',name:'Millisecond',factor:1e-3,cat:'time'},
+    {sym:'s',name:'Second',factor:1,cat:'time'},
+    {sym:'min',name:'Minute',factor:60,cat:'time'},
+    {sym:'hr',name:'Hour',factor:3600,cat:'time'},
+    {sym:'d',name:'Day',factor:86400,cat:'time'},
+    {sym:'wk',name:'Week',factor:604800,cat:'time'},
+    {sym:'yr',name:'Year',factor:3.156e7,cat:'time'},
+    {sym:'My',name:'Megayear',factor:3.156e13,cat:'time'},
+    {sym:'Gy',name:'Gigayear',factor:3.156e16,cat:'time'},
+    // Data
+    {sym:'b',name:'Bit',factor:1,cat:'data'},
+    {sym:'B',name:'Byte',factor:8,cat:'data'},
+    {sym:'KB',name:'Kilobyte',factor:8e3,cat:'data'},
+    {sym:'MB',name:'Megabyte',factor:8e6,cat:'data'},
+    {sym:'GB',name:'Gigabyte',factor:8e9,cat:'data'},
+    {sym:'TB',name:'Terabyte',factor:8e12,cat:'data'},
+    {sym:'PB',name:'Petabyte',factor:8e15,cat:'data'},
+    // Calibration Legend (BPM ↔ qBPM ↔ QHz ↔ ns/line)
+    {sym:'BPM',name:'Linear BPM',factor:1,cat:'calibration'},
+    {sym:'qBPM',name:'Quantum BPM (QHz×60)',factor:1,cat:'calibration'},
+    {sym:'QHz',name:'Quantum Hertz',factor:1,cat:'calibration'},
+    {sym:'Hz',name:'Hertz',factor:1,cat:'calibration'},
+    {sym:'lines/s',name:'Lines per second',factor:1,cat:'calibration'},
+    {sym:'ns/line',name:'Nanoseconds per line',factor:1,cat:'calibration'},
+    {sym:'µs/line',name:'Microseconds per line',factor:1,cat:'calibration'},
+    {sym:'ms/line',name:'Milliseconds per line',factor:1,cat:'calibration'},
+];
+
+let activeCat = 'length';
+function unitsForCat(cat){ return UNITS.filter(u=>u.cat===cat); }
+
+/* ═══════════════════════════════════════════════════
+   CONVERTER
+   ═══════════════════════════════════════════════════ */
+const fromSel = document.getElementById('conv-from');
+const toSel = document.getElementById('conv-to');
+const valInput = document.getElementById('conv-val');
+const resultEl = document.getElementById('conv-result');
+const laneTbEl = document.getElementById('lane-tb');
+const laneCostEl = document.getElementById('lane-cost');
+const lanePctAEl = document.getElementById('lane-pct-a');
+const lanePctBEl = document.getElementById('lane-pct-b');
+const laneTotalEl = document.getElementById('lane-total');
+const laneSliceAEl = document.getElementById('lane-slice-a');
+const laneSliceBEl = document.getElementById('lane-slice-b');
+const laneVolumeEl = document.getElementById('lane-volume');
+
+function fmtMoney(n){
+    return Number(n || 0).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
+}
+function updateDataLane(){
+    if(!laneTbEl||!laneCostEl||!lanePctAEl||!lanePctBEl) return;
+    const tb = Number(laneTbEl.value || 0);
+    const cost = Number(laneCostEl.value || 0);
+    const pctA = Number(lanePctAEl.value || 0) / 100;
+    const pctB = Number(lanePctBEl.value || 0) / 100;
+    const total = tb * cost;
+    const sliceA = total * pctA;
+    const sliceB = total * pctB;
+    if(laneTotalEl) laneTotalEl.textContent = fmtMoney(total);
+    if(laneSliceAEl) laneSliceAEl.textContent = fmtMoney(sliceA);
+    if(laneSliceBEl) laneSliceBEl.textContent = fmtMoney(sliceB);
+    if(laneVolumeEl){
+        const eb = tb / 1e6;
+        const zb = tb / 1e9;
+        laneVolumeEl.textContent = `${fmt(tb)} TB · ${fmt(eb)} EB · ${fmt(zb)} ZB`;
+    }
+    try{
+        const ironLine = new BroadcastChannel('iron-line');
+        ironLine.postMessage({type:'freya-data-lane',tb,cost,pctA,pctB,total,sliceA,sliceB,timestamp:Date.now()});
+        ironLine.close();
+    }catch(_){}
+}
+
+function populateSelects(){
+    const units = unitsForCat(activeCat);
+    fromSel.innerHTML = ''; toSel.innerHTML = '';
+    units.forEach((u,i)=>{
+        fromSel.add(new Option(`${u.sym} — ${u.name}`, i));
+        toSel.add(new Option(`${u.sym} — ${u.name}`, i));
+    });
+    if(units.length>1) toSel.value = 1;
+    buildQuickBtns();
+    convert();
+}
+
+function fmt(val){
+    if(val===0) return '0';
+    const a=Math.abs(val);
+    if(a>=1e12||a<1e-4) return val.toExponential(6);
+    if(a>=1e6) return val.toLocaleString(undefined,{maximumFractionDigits:4});
+    if(a>=1) return val.toLocaleString(undefined,{maximumFractionDigits:8});
+    return val.toFixed(10).replace(/0+$/,'').replace(/\.$/,'');
+}
+
+function calToQHz(v, sym){
+    const val = Number(v) || 0;
+    if(sym==='BPM') return val / 60;
+    if(sym==='qBPM') return val / 60;
+    if(sym==='QHz' || sym==='Hz' || sym==='lines/s') return val;
+    if(sym==='ns/line') return val > 0 ? 1e9 / val : 0;
+    if(sym==='µs/line') return val > 0 ? 1e6 / val : 0;
+    if(sym==='ms/line') return val > 0 ? 1e3 / val : 0;
+    return val;
+}
+
+function qHzToCal(qHz, sym){
+    const v = Number(qHz) || 0;
+    if(sym==='BPM') return v * 60;
+    if(sym==='qBPM') return v * 60;
+    if(sym==='QHz' || sym==='Hz' || sym==='lines/s') return v;
+    if(sym==='ns/line') return v > 0 ? 1e9 / v : 0;
+    if(sym==='µs/line') return v > 0 ? 1e6 / v : 0;
+    if(sym==='ms/line') return v > 0 ? 1e3 / v : 0;
+    return v;
+}
+
+function convert(){
+    const units = unitsForCat(activeCat);
+    const val = parseFloat(valInput.value)||0;
+    const fromU = units[fromSel.value];
+    const toU = units[toSel.value];
+    if(!fromU||!toU) return;
+
+    let result;
+    if(activeCat==='temperature'){
+        // Temperature: convert to Kelvin first, then to target
+        const kelvin = (val - (fromU.offset||0)/fromU.factor) * fromU.factor + (fromU.offset||0);
+        // Simplified: val_K = val*fromFactor + fromOffset
+        const k = val * fromU.factor + (fromU.offset||0);
+        result = (k - (toU.offset||0)) / toU.factor;
+    } else if(activeCat==='calibration'){
+        const qHz = calToQHz(val, fromU.sym);
+        result = qHzToCal(qHz, toU.sym);
+    } else {
+        const base = val * fromU.factor;
+        result = base / toU.factor;
+    }
+    resultEl.textContent = fmt(result) + ' ' + toU.sym;
+
+    // Update table
+    const tbl = document.getElementById('conv-table');
+    tbl.innerHTML = '';
+    units.forEach(u=>{
+        let v;
+        if(activeCat==='temperature'){
+            const k = val * fromU.factor + (fromU.offset||0);
+            v = (k - (u.offset||0)) / u.factor;
+        } else if(activeCat==='calibration'){
+            const qHz = calToQHz(val, fromU.sym);
+            v = qHzToCal(qHz, u.sym);
+        } else {
+            v = (val * fromU.factor) / u.factor;
+        }
+        const isActive = u.sym===toU.sym;
+        const div = document.createElement('div');
+        div.className = 'conv-row' + (isActive?' highlight':'');
+        div.innerHTML = `<span style="color:${CATEGORIES[activeCat].color};">${isActive?'► ':''}${u.sym}</span><span style="${isActive?'color:var(--purple);font-weight:700;':''}">${fmt(v)}</span>`;
+        tbl.appendChild(div);
+    });
+
+    // Quantum properties (length only)
+    const qDiv = document.getElementById('quantum-props');
+    if(activeCat==='length'){
+        const meters = val * fromU.factor;
+        if(meters > 0){
+            const C = 299792458, H = 6.62607015e-34;
+            const freq = C / meters;
+            const energy = H * freq;
+            const eV = energy / 1.602176634e-19;
+            qDiv.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div><b style="color:var(--orange);">Frequency:</b> ${freq.toExponential(4)} Hz</div>
+                <div><b style="color:var(--orange);">Energy:</b> ${energy.toExponential(4)} J (${eV.toExponential(4)} eV)</div>
+                <div><b style="color:var(--cyan);">Wavelength:</b> ${meters.toExponential(4)} m</div>
+                <div><b style="color:var(--cyan);">Period:</b> ${(1/freq).toExponential(4)} s</div>
+                <div><b style="color:var(--purple);">Momentum (h/λ):</b> ${(H/meters).toExponential(4)} kg·m/s</div>
+                <div><b style="color:var(--purple);">Light travel:</b> ${(meters/C).toExponential(4)} s</div>
+            </div>`;
+        } else { qDiv.textContent = 'Enter a positive value.'; }
+    } else if(activeCat==='calibration'){
+        const qHz = calToQHz(val, fromU.sym);
+        const qBPM = qHz * 60;
+        const nsPerLine = qHz > 0 ? 1e9 / qHz : 0;
+        const lane = qBPM >= 1e8 ? 'beyond-bpm' : 'linear-bpm';
+        let ref = null;
+        try {
+            if(window.qbitCodec && window.qbitCodec.calibrationLegend) {
+                ref = window.qbitCodec.calibrationLegend('freya calibration legend', 'text', 'freya-calibration', {});
+            }
+        } catch(_){}
+        let compass = null;
+        try {
+            if(window.qbitCodec && window.qbitCodec.ironCompass) {
+                compass = window.qbitCodec.ironCompass('freya calibration legend', 'text', 'freya-compass', {});
+            }
+        } catch(_){}
+        qDiv.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div><b style="color:var(--orange);">Linear BPM:</b> ${fmt(qHzToCal(qHz,'BPM'))}</div>
+            <div><b style="color:var(--purple);">qBPM:</b> ${fmt(qBPM)}</div>
+            <div><b style="color:var(--cyan);">QHz:</b> ${fmt(qHz)}</div>
+            <div><b style="color:var(--cyan);">ns/line:</b> ${fmt(nsPerLine)}</div>
+            <div><b style="color:var(--green);">Lane:</b> ${lane}</div>
+            <div><b style="color:var(--green);">Rule:</b> qBPM = QHz × 60</div>
+        </div>
+        <div style="margin-top:8px;color:var(--text-muted);font-size:0.75rem;">
+            <b style="color:var(--cyan);">Calibration Legend:</b> BPM is human-musical calibration. qBPM uses compute cadence from QHz/ns-per-line.
+            ${ref && ref.summary ? '<br><span style="color:var(--text-dim);">'+ref.summary+'</span>' : ''}
+            ${compass ? '<br><b style="color:var(--purple);">Iron Compass:</b> heading '+compass.heading+' · lane '+compass.lane+' · route '+compass.route.join('→') : ''}
+        </div>`;
+    } else {
+        qDiv.innerHTML = `<div style="color:var(--text-muted);">Quantum properties available for Length category.</div>`;
+    }
+    drawScale();
+}
+
+function drawScale(){
+    if(activeCat!=='length') return;
+    const canvas = document.getElementById('scale-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle='#050810'; ctx.fillRect(0,0,W,H);
+
+    const units = unitsForCat('length');
+    const minLog=-35, maxLog=17, range=maxLog-minLog;
+    units.forEach(u=>{
+        const log = Math.log10(u.factor);
+        const x = ((log-minLog)/range)*(W-40)+20;
+        ctx.fillStyle='#a78bfa44';
+        ctx.fillRect(x-1,14,2,H-28);
+        ctx.fillStyle='#a78bfa';
+        ctx.font='9px monospace';
+        ctx.textAlign='center';
+        ctx.fillText(u.sym,x,10);
+    });
+    const val = parseFloat(valInput.value)||0;
+    const fromU = units[fromSel.value];
+    if(val>0&&fromU){
+        const meters = val*fromU.factor;
+        const log = Math.log10(meters);
+        const x = ((log-minLog)/range)*(W-40)+20;
+        ctx.fillStyle='rgba(124,58,237,0.2)'; ctx.fillRect(x-10,0,20,H);
+        ctx.fillStyle='#c084fc'; ctx.fillRect(x-1.5,14,3,H-28);
+        ctx.beginPath(); ctx.moveTo(x,H-4); ctx.lineTo(x-6,H); ctx.lineTo(x+6,H); ctx.fill();
+    }
+}
+
+function buildQuickBtns(){
+    const quick = document.getElementById('conv-quick');
+    quick.innerHTML = '';
+    const units = unitsForCat(activeCat);
+    units.forEach((u,i)=>{
+        const btn = document.createElement('button');
+        btn.className='quick-btn'; btn.textContent=u.sym; btn.title=u.name;
+        btn.style.color=CATEGORIES[activeCat].color;
+        btn.addEventListener('click',()=>{ toSel.value=i; convert(); });
+        quick.appendChild(btn);
+    });
+}
+
+// Category pills
+const pillsDiv = document.getElementById('cat-pills');
+Object.entries(CATEGORIES).forEach(([key,cat])=>{
+    const pill = document.createElement('span');
+    pill.className='cat-pill'+(key===activeCat?' active':'');
+    pill.textContent=cat.icon+' '+cat.name;
+    pill.style.color=cat.color;
+    pill.dataset.cat=key;
+    pill.addEventListener('click',()=>{
+        activeCat=key;
+        document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('active'));
+        pill.classList.add('active');
+        populateSelects();
+    });
+    pillsDiv.appendChild(pill);
+});
+
+valInput.addEventListener('input',convert);
+fromSel.addEventListener('change',convert);
+toSel.addEventListener('change',convert);
+document.getElementById('conv-swap').addEventListener('click',()=>{
+    const tmp=fromSel.value; fromSel.value=toSel.value; toSel.value=tmp; convert();
+});
+populateSelects();
+if(laneTbEl){ laneTbEl.addEventListener('input', updateDataLane); }
+if(laneCostEl){ laneCostEl.addEventListener('input', updateDataLane); }
+if(lanePctAEl){ lanePctAEl.addEventListener('input', updateDataLane); }
+if(lanePctBEl){ lanePctBEl.addEventListener('input', updateDataLane); }
+const lanePresetGlobalBtn = document.getElementById('lane-preset-global');
+const lanePresetCostBtn = document.getElementById('lane-preset-cost');
+const laneCopyJsonBtn = document.getElementById('lane-copy-json');
+if(lanePresetGlobalBtn) lanePresetGlobalBtn.addEventListener('click',()=>{ laneTbEl.value = 474000000; updateDataLane(); });
+if(lanePresetCostBtn) lanePresetCostBtn.addEventListener('click',()=>{ laneCostEl.value = 400; updateDataLane(); });
+if(laneCopyJsonBtn) laneCopyJsonBtn.addEventListener('click', async ()=>{
+    const payload = {
+        tbPerDay:Number(laneTbEl?.value||0),
+        costPerTbUsd:Number(laneCostEl?.value||0),
+        pctA:Number(lanePctAEl?.value||0),
+        pctB:Number(lanePctBEl?.value||0),
+        totalUsd:Number((Number(laneTbEl?.value||0)*Number(laneCostEl?.value||0)).toFixed(2)),
+    };
+    payload.sliceAUsd = Number((payload.totalUsd * payload.pctA / 100).toFixed(2));
+    payload.sliceBUsd = Number((payload.totalUsd * payload.pctB / 100).toFixed(2));
+    try{
+        await navigator.clipboard.writeText(JSON.stringify(payload,null,2));
+        laneCopyJsonBtn.textContent='Copied';
+        setTimeout(()=>{laneCopyJsonBtn.textContent='Copy JSON';},1200);
+    }catch(_){}
+});
+updateDataLane();
+
+/* ═══════════════════════════════════════════════════
+   CALCULATOR (mathjs + KaTeX)
+   ═══════════════════════════════════════════════════ */
+const calcInput = document.getElementById('calc-input');
+const calcExpr = document.getElementById('calc-expr');
+const calcResult = document.getElementById('calc-result');
+const calcLatex = document.getElementById('calc-latex');
+
+function evalCalc(expr){
+    if(!expr.trim()) return;
+    calcExpr.textContent = expr;
+    try {
+        const result = window.math ? math.evaluate(expr) : eval(expr);
+        const formatted = window.math ? math.format(result, {precision:14}) : String(result);
+        calcResult.textContent = formatted;
+        // Try KaTeX rendering
+        if(window.katex){
+            try{
+                const texExpr = expr.replace(/\*/g,'\\cdot ').replace(/sqrt/g,'\\sqrt').replace(/pi/g,'\\pi');
+                calcLatex.innerHTML = katex.renderToString(texExpr + ' = ' + formatted, {displayMode:false,throwOnError:false});
+            } catch{ calcLatex.textContent=''; }
+        }
+    } catch(e){
+        calcResult.textContent = e.message||'Error';
+        calcResult.style.color='#fb7185';
+        setTimeout(()=>{ calcResult.style.color=''; },2000);
+    }
+}
+
+calcInput.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ evalCalc(calcInput.value); }
+});
+
+// Key grid
+const keys = [
+    {l:'sin',v:'sin(',cls:'fn'},{l:'cos',v:'cos(',cls:'fn'},{l:'tan',v:'tan(',cls:'fn'},{l:'log',v:'log(',cls:'fn'},{l:'C',v:'CLEAR',cls:'op'},
+    {l:'asin',v:'asin(',cls:'fn'},{l:'acos',v:'acos(',cls:'fn'},{l:'atan',v:'atan(',cls:'fn'},{l:'ln',v:'log(',cls:'fn'},{l:'⌫',v:'DEL',cls:'op'},
+    {l:'√',v:'sqrt(',cls:'fn'},{l:'x²',v:'^2',cls:'fn'},{l:'xⁿ',v:'^',cls:'fn'},{l:'π',v:'pi',cls:'fn'},{l:'e',v:'e',cls:'fn'},
+    {l:'(',v:'('},{l:')',v:')'},{l:'%',v:'%',cls:'op'},{l:'÷',v:'/',cls:'op'},{l:'×',v:'*',cls:'op'},
+    {l:'7',v:'7'},{l:'8',v:'8'},{l:'9',v:'9'},{l:'-',v:'-',cls:'op'},{l:'det',v:'det([',cls:'fn'},
+    {l:'4',v:'4'},{l:'5',v:'5'},{l:'6',v:'6'},{l:'+',v:'+',cls:'op'},{l:'inv',v:'inv([',cls:'fn'},
+    {l:'1',v:'1'},{l:'2',v:'2'},{l:'3',v:'3'},{l:'.',v:'.'},{l:'=',v:'EVAL',cls:'eq'},
+    {l:'0',v:'0',cls:'wide'},{l:'i',v:'i',cls:'fn'},{l:'Ans',v:'ans',cls:'fn'},{l:'→',v:', ',cls:'op'},
+];
+const keysDiv = document.getElementById('calc-keys');
+keys.forEach(k=>{
+    const btn = document.createElement('button');
+    btn.className='calc-key'+(k.cls?' '+k.cls:'')+(k.cls==='wide'?' wide':'');
+    btn.textContent=k.l;
+    btn.addEventListener('click',()=>{
+        if(k.v==='CLEAR'){ calcInput.value=''; calcExpr.textContent=''; calcResult.textContent='0'; calcLatex.innerHTML=''; }
+        else if(k.v==='DEL'){ calcInput.value=calcInput.value.slice(0,-1); }
+        else if(k.v==='EVAL'){ evalCalc(calcInput.value); }
+        else { calcInput.value+=k.v; calcInput.focus(); }
+    });
+    keysDiv.appendChild(btn);
+});
+
+// Equation reference
+const equations = [
+    {name:'Quadratic Formula',tex:'x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}'},
+    {name:'Euler\'s Identity',tex:'e^{i\\pi} + 1 = 0'},
+    {name:'Gaussian Integral',tex:'\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}'},
+    {name:'Taylor Series (eˣ)',tex:'e^x = \\sum_{n=0}^{\\infty} \\frac{x^n}{n!}'},
+    {name:'Fourier Transform',tex:'\\hat{f}(\\xi) = \\int_{-\\infty}^{\\infty} f(x)e^{-2\\pi ix\\xi}dx'},
+    {name:'Schrödinger Equation',tex:'i\\hbar\\frac{\\partial}{\\partial t}\\Psi = \\hat{H}\\Psi'},
+    {name:'Einstein Field Eq.',tex:'G_{\\mu\\nu} + \\Lambda g_{\\mu\\nu} = \\frac{8\\pi G}{c^4}T_{\\mu\\nu}'},
+    {name:'Planck-Einstein',tex:'E = h\\nu = \\frac{hc}{\\lambda}'},
+    {name:'De Broglie',tex:'\\lambda = \\frac{h}{mv}'},
+    {name:'Heisenberg',tex:'\\Delta x \\cdot \\Delta p \\geq \\frac{\\hbar}{2}'},
+    {name:'Boltzmann Entropy',tex:'S = k_B \\ln \\Omega'},
+    {name:'Maxwell\'s Equations',tex:'\\nabla \\cdot \\mathbf{E} = \\frac{\\rho}{\\epsilon_0}'},
+];
+const eqDiv = document.getElementById('eq-ref');
+equations.forEach(eq=>{
+    const card = document.createElement('div');
+    card.style.cssText='padding:12px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border);';
+    card.innerHTML=`<div style="font-size:0.6875rem;color:var(--text-muted);margin-bottom:6px;">${eq.name}</div><div id="eq_${eq.name.replace(/\W/g,'')}"></div>`;
+    eqDiv.appendChild(card);
+    setTimeout(()=>{
+        if(window.katex){
+            try{ document.getElementById('eq_'+eq.name.replace(/\W/g,'')).innerHTML=katex.renderToString(eq.tex,{displayMode:true,throwOnError:false}); }catch{}
+        }
+    },100);
+});
+
+// Plotter
+document.getElementById('plot-btn').addEventListener('click',()=>{
+    const expr = document.getElementById('plot-expr').value.trim();
+    if(!expr) return;
+    const xmin = parseFloat(document.getElementById('plot-min').value)||-10;
+    const xmax = parseFloat(document.getElementById('plot-max').value)||10;
+    const xs=[], ys=[];
+    const step=(xmax-xmin)/500;
+    for(let x=xmin;x<=xmax;x+=step){
+        xs.push(x);
+        try{ ys.push(window.math?math.evaluate(expr,{x}):eval(expr.replace(/x/g,`(${x})`))); }
+        catch{ ys.push(NaN); }
+    }
+    Plotly.newPlot('plot-chart',[{x:xs,y:ys,type:'scatter',mode:'lines',line:{color:'#7c3aed',width:2.5}}],{
+        paper_bgcolor:'#050810',plot_bgcolor:'#0a0f1a',
+        margin:{t:40,r:20,b:40,l:50},
+        title:{text:`y = ${expr}`,font:{color:'#e2e8f0',size:14}},
+        xaxis:{gridcolor:'#1e2d4a',zerolinecolor:'#2563eb44',tickfont:{color:'#64748b'},title:{text:'x',font:{color:'#64748b'}}},
+        yaxis:{gridcolor:'#1e2d4a',zerolinecolor:'#2563eb44',tickfont:{color:'#64748b'}},
+    },{responsive:true,displayModeBar:false});
+});
+
+/* ═══════════════════════════════════════════════════
+   CELESTIAL CHART
+   ═══════════════════════════════════════════════════ */
+const PLANETS = [
+    {name:'Mercury',sym:'☿',color:'#b0b0b0',dist:0.387,period:87.97,size:12,icon:'🪨'},
+    {name:'Venus',sym:'♀',color:'#e8c547',dist:0.723,period:224.7,size:14,icon:'🌕'},
+    {name:'Earth',sym:'♁',color:'#4da6ff',dist:1.0,period:365.25,size:15,icon:'🌍'},
+    {name:'Mars',sym:'♂',color:'#e06050',dist:1.524,period:687.0,size:13,icon:'🔴'},
+    {name:'Jupiter',sym:'♃',color:'#d4a574',dist:5.203,period:4332.6,size:22,icon:'🟤'},
+    {name:'Saturn',sym:'♄',color:'#c5ab6e',dist:9.537,period:10759,size:20,icon:'🪐'},
+    {name:'Uranus',sym:'♅',color:'#73c2c2',dist:19.19,period:30687,size:17,icon:'🔵'},
+    {name:'Neptune',sym:'♆',color:'#4060e0',dist:30.07,period:60190,size:16,icon:'🔵'},
+];
+
+const CONSTELLATIONS = [
+    {name:'Orion',stars:[[5.6,-1.2],[5.4,6.3],[5.5,9.9],[5.3,-8.2],[5.9,-1.9],[5.7,-9.7],[5.2,8.5]],color:'#22d3ee'},
+    {name:'Ursa Major',stars:[[11.1,61.8],[11.0,56.4],[11.9,53.7],[12.3,57.0],[12.9,55.9],[13.4,54.9],[13.8,49.3]],color:'#a78bfa'},
+    {name:'Cassiopeia',stars:[[0.15,59.2],[0.68,56.5],[0.95,60.7],[1.43,60.2],[1.91,63.7]],color:'#fbbf24'},
+    {name:'Leo',stars:[[10.1,12.0],[10.3,19.8],[11.2,20.5],[11.8,14.6],[10.1,16.8],[9.8,26.0],[9.3,23.0]],color:'#fb7185'},
+    {name:'Scorpius',stars:[[-16.5,-26.4],[-16.1,-19.8],[-16.0,-22.6],[-15.9,-26.1],[-16.9,-34.3],[-17.2,-37.3],[-17.6,-43.0]],color:'#f97316'},
+];
+
+function drawCelestialChart(){
+    const canvas=document.getElementById('star-canvas');
+    const ctx=canvas.getContext('2d');
+    const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#050810'; ctx.fillRect(0,0,W,H);
+
+    // Background stars
+    for(let i=0;i<300;i++){
+        ctx.beginPath();
+        ctx.arc(Math.random()*W,Math.random()*H,Math.random()*1.2+0.2,0,Math.PI*2);
+        ctx.fillStyle=`rgba(200,210,255,${Math.random()*0.6+0.1})`;
+        ctx.fill();
+    }
+
+    // Constellation grid lines
+    ctx.strokeStyle='#1e2d4a33';
+    for(let i=0;i<24;i++){ const x=i/24*W; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let i=-6;i<=6;i++){ const y=H/2-i/90*H; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    // Draw constellations
+    CONSTELLATIONS.forEach(c=>{
+        ctx.strokeStyle=c.color+'66';
+        ctx.lineWidth=1;
+        const points=c.stars.map(([ra,dec])=>[ra/24*W,(90-dec)/180*H]);
+        ctx.beginPath();
+        points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]); });
+        ctx.stroke();
+        points.forEach(([x,y])=>{
+            ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2);
+            ctx.fillStyle=c.color; ctx.fill();
+        });
+        if(points.length){
+            const cx=points.reduce((s,p)=>s+p[0],0)/points.length;
+            const cy=points.reduce((s,p)=>s+p[1],0)/points.length;
+            ctx.font='10px sans-serif'; ctx.fillStyle=c.color+'99'; ctx.textAlign='center';
+            ctx.fillText(c.name,cx,cy-10);
+        }
+    });
+
+    // Ecliptic line
+    ctx.strokeStyle='#fbbf2433'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    for(let i=0;i<=W;i+=2){
+        const y=H/2+Math.sin(i/W*Math.PI*2)*H*0.13;
+        if(i===0) ctx.moveTo(i,y); else ctx.lineTo(i,y);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+
+    // Labels
+    ctx.font='9px monospace'; ctx.fillStyle='#475569'; ctx.textAlign='center';
+    for(let h=0;h<24;h+=2){ ctx.fillText(h+'h',h/24*W,H-4); }
+    ctx.textAlign='right';
+    for(let d=-60;d<=60;d+=30){ ctx.fillText(d+'°',W-4,(90-d)/180*H+3); }
+
+    // Time
+    document.getElementById('cel-time').textContent = new Date().toISOString().split('T')[0]+' UTC';
+}
+drawCelestialChart();
+
+// Planet grid
+const pgrid=document.getElementById('planet-grid');
+const J2000=2451545.0;
+const now=new Date();
+const jd=J2000+(now.getTime()/86400000-10957.5);
+PLANETS.forEach(p=>{
+    const angle=((jd/p.period)*360)%360;
+    const div=document.createElement('div');
+    div.className='cel-card';
+    div.innerHTML=`<div class="planet">${p.icon}</div><div class="name" style="color:${p.color};">${p.name}</div>
+        <div class="data">${p.dist} AU · ${angle.toFixed(1)}°</div>
+        <div class="data">${p.period}d orbit</div>`;
+    pgrid.appendChild(div);
+});
+
+// Deep sky objects
+const DSO=[
+    {name:'M31 Andromeda',dist:'2.537 Mly',type:'Galaxy',mag:3.4},
+    {name:'M42 Orion Nebula',dist:'1,344 ly',type:'Nebula',mag:4.0},
+    {name:'M45 Pleiades',dist:'444 ly',type:'Open Cluster',mag:1.6},
+    {name:'M13 Hercules',dist:'22,200 ly',type:'Glob. Cluster',mag:5.8},
+    {name:'M1 Crab Nebula',dist:'6,523 ly',type:'Sup. Remnant',mag:8.4},
+    {name:'M51 Whirlpool',dist:'23.16 Mly',type:'Galaxy',mag:8.4},
+    {name:'M57 Ring Nebula',dist:'2,567 ly',type:'Plan. Nebula',mag:8.8},
+    {name:'NGC 7293 Helix',dist:'655 ly',type:'Plan. Nebula',mag:7.6},
+];
+const dsoDiv=document.getElementById('deep-sky');
+DSO.forEach(d=>{
+    const el=document.createElement('div');
+    el.style.cssText='padding:8px;background:var(--bg);border-radius:var(--radius-xs);border:1px solid var(--border);';
+    el.innerHTML=`<div style="color:var(--cyan);font-weight:600;">${d.name}</div><div style="color:var(--text-muted);font-size:0.625rem;">${d.type} · ${d.dist} · mag ${d.mag}</div>`;
+    dsoDiv.appendChild(el);
+});
+
+/* ═══════════════════════════════════════════════════
+   CODEX — BLOCH ASTROLOGY CHART
+   ═══════════════════════════════════════════════════ */
+const ZODIAC=['♈Aries','♉Taurus','♊Gemini','♋Cancer','♌Leo','♍Virgo','♎Libra','♏Scorpio','♐Sagittarius','♑Capricorn','♒Aquarius','♓Pisces'];
+const ZODIAC_SYM=['♈','♉','♊','♋','♌','♍','♎','♎','♐','♑','♒','♓'];
+const ZODIAC_CLR=['#f85149','#3fb950','#ffe138','#38a5ff','#f0883e','#a78bfa','#56d4dd','#f85149','#bc8cff','#8b949e','#58a6ff','#3fb950'];
+const GATE_SYM=['H','CNOT','X','Rz','I','S','T','SWAP','M','CZ','Y'];
+const GATE_CLR=['#3fb950','#a78bfa','#f85149','#58a6ff','#8b949e','#56d4dd','#ffe138','#f0883e','#bc8cff','#ff7b72','#e3b341'];
+const IRON_HOUSES=['L0 Speed','L1 Terminal','L1 Search','L2 Commander','L3 Quantum','L3 Circuit','L4 Notepad','L4 kBatch','L5 RNDR','L5 HexCast','L6 Research','L7 Persona'];
+const CELEST_BODIES=[
+  {name:'Sun',sym:'☉',lon:1.38,gate:'H',house:1,color:'#f0883e'},
+  {name:'Moon',sym:'☽',lon:332.77,gate:'CNOT',house:7,color:'#c9d1d9'},
+  {name:'Mercury',sym:'☿',lon:346.6,gate:'X',house:4,color:'#ffe138'},
+  {name:'Venus',sym:'♀',lon:347.57,gate:'Rz',house:5,color:'#3fb950'},
+  {name:'Mars',sym:'♂',lon:344.47,gate:'CZ',house:6,color:'#f85149'},
+  {name:'Jupiter',sym:'♃',lon:96.28,gate:'T',house:8,color:'#a78bfa'},
+  {name:'Saturn',sym:'♄',lon:69.63,gate:'S',house:7,color:'#8b949e'},
+  {name:'Uranus',sym:'♅',lon:326.83,gate:'SWAP',house:3,color:'#58a6ff'},
+  {name:'Neptune',sym:'♆',lon:310.25,gate:'M',house:3,color:'#56d4dd'},
+  {name:'Pluto',sym:'⯓',lon:257.62,gate:'Y',house:1,color:'#bc8cff'}
+];
+let codexMode='natal',codexRotation=0;
+
+function drawCodexChart(){
+  const cv=document.getElementById('codex-canvas');if(!cv)return;
+  const ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height,cx=W/2,cy=H/2;
+  const R=Math.min(cx,cy)*0.88;
+  ctx.clearRect(0,0,W,H);
+
+  const bg=ctx.createRadialGradient(cx,cy,0,cx,cy,R*1.2);
+  bg.addColorStop(0,'rgba(14,10,24,0.95)');bg.addColorStop(0.7,'rgba(13,17,23,0.9)');bg.addColorStop(1,'rgba(0,0,0,0.95)');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+  for(let i=0;i<120;i++){const x=Math.random()*W,y=Math.random()*H,s=Math.random()*1.5;
+    ctx.fillStyle=`rgba(200,220,255,${Math.random()*0.4})`;ctx.fillRect(x,y,s,s);}
+
+  const rings=[R,R*0.85,R*0.72,R*0.55,R*0.35];
+  rings.forEach((r,i)=>{
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(88,166,255,${0.15+i*0.05})`;ctx.lineWidth=i===0?2:0.8;ctx.stroke();
+  });
+
+  for(let i=0;i<12;i++){
+    const a=(i*30-90+codexRotation)*Math.PI/180;
+    const x1=cx+Math.cos(a)*rings[1],y1=cy+Math.sin(a)*rings[1];
+    const x2=cx+Math.cos(a)*rings[0],y2=cy+Math.sin(a)*rings[0];
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);
+    ctx.strokeStyle='rgba(88,166,255,0.2)';ctx.lineWidth=0.6;ctx.stroke();
+
+    const ma=(i*30+15-90+codexRotation)*Math.PI/180;
+    const tr=(rings[0]+rings[1])/2;
+    ctx.fillStyle=ZODIAC_CLR[i];ctx.font='bold 14px monospace';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(ZODIAC_SYM[i],cx+Math.cos(ma)*tr,cy+Math.sin(ma)*tr);
+
+    const ir=(rings[1]+rings[2])/2;
+    ctx.fillStyle=GATE_CLR[i%11]+'90';ctx.font='9px monospace';
+    ctx.fillText(GATE_SYM[i%11],cx+Math.cos(ma)*ir,cy+Math.sin(ma)*ir);
+
+    const hr=(rings[2]+rings[3])/2;
+    ctx.fillStyle='rgba(201,209,217,0.4)';ctx.font='8px monospace';
+    ctx.fillText(IRON_HOUSES[i],cx+Math.cos(ma)*hr,cy+Math.sin(ma)*hr);
+  }
+
+  CELEST_BODIES.forEach(body=>{
+    const a=(body.lon-90+codexRotation)*Math.PI/180;
+    const r=rings[2]+Math.random()*20-10;
+    const bx=cx+Math.cos(a)*r,by=cy+Math.sin(a)*r;
+
+    const glow=ctx.createRadialGradient(bx,by,0,bx,by,12);
+    glow.addColorStop(0,body.color+'80');glow.addColorStop(1,'transparent');
+    ctx.fillStyle=glow;ctx.fillRect(bx-12,by-12,24,24);
+
+    ctx.fillStyle=body.color;ctx.font='bold 16px serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(body.sym,bx,by);
+
+    ctx.fillStyle=body.color+'90';ctx.font='7px monospace';
+    ctx.fillText(body.name,bx,by+12);
+    ctx.fillStyle='rgba(167,139,250,0.6)';ctx.font='6px monospace';
+    ctx.fillText(body.gate,bx,by+19);
+  });
+
+  ctx.beginPath();ctx.arc(cx,cy,8,0,Math.PI*2);
+  const coreG=ctx.createRadialGradient(cx,cy,0,cx,cy,8);
+  coreG.addColorStop(0,'rgba(255,200,100,0.9)');coreG.addColorStop(1,'rgba(240,136,62,0.3)');
+  ctx.fillStyle=coreG;ctx.fill();
+
+  if(codexMode==='transit'){
+    const now=Date.now()/1000;
+    const transitA=(now%360-90)*Math.PI/180;
+    ctx.save();ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.arc(cx,cy,rings[2],0,Math.PI*2);
+    ctx.strokeStyle='rgba(63,185,80,0.3)';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle='#3fb950';ctx.font='bold 10px monospace';
+    ctx.fillText('NOW',cx+Math.cos(transitA)*rings[2],cy+Math.sin(transitA)*rings[2]);
+  }
+
+  ctx.fillStyle='rgba(201,209,217,0.5)';ctx.font='9px monospace';ctx.textAlign='center';
+  ctx.fillText('Quantum Codex — 11 Gates × 12 Houses × Iron Line',cx,H-12);
+  document.getElementById('codex-time').textContent=new Date().toISOString().slice(0,19)+'Z';
+}
+
+function buildCodexPanels(){
+  const hDiv=document.getElementById('codex-houses');
+  if(hDiv){hDiv.innerHTML='';
+    IRON_HOUSES.forEach((h,i)=>{
+      const z=ZODIAC[i];const g=GATE_SYM[i%11];
+      const d=document.createElement('div');
+      d.style.cssText='background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:0.75rem';
+      d.innerHTML=`<div style="color:${ZODIAC_CLR[i]};font-weight:700">${i+1}. ${z}</div>
+        <div style="color:var(--text-muted)">Iron: ${h}</div>
+        <div style="color:${GATE_CLR[i%11]}">Gate: ${g}</div>`;
+      hDiv.appendChild(d);
+    });
+  }
+  const pDiv=document.getElementById('codex-planets');
+  if(pDiv){pDiv.innerHTML='';
+    CELEST_BODIES.forEach(b=>{
+      const d=document.createElement('div');
+      d.style.cssText='background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:0.6875rem';
+      d.innerHTML=`<span style="color:${b.color};font-size:1.2rem">${b.sym}</span>
+        <span style="color:var(--text)">${b.name}</span><br>
+        <span style="color:var(--text-muted)">${b.lon.toFixed(1)}° · House ${b.house} · ${b.gate}</span>`;
+      pDiv.appendChild(d);
+    });
+  }
+}
+
+document.getElementById('codex-natal')?.addEventListener('click',()=>{codexMode='natal';drawCodexChart();});
+document.getElementById('codex-transit')?.addEventListener('click',()=>{codexMode='transit';drawCodexChart();});
+document.getElementById('codex-gates')?.addEventListener('click',()=>{codexMode='gates';drawCodexChart();});
+document.getElementById('codex-sync')?.addEventListener('click',()=>{
+  new BroadcastChannel('iron-line').postMessage({type:'codex-sync',bodies:CELEST_BODIES,houses:IRON_HOUSES,mode:codexMode});
+});
+drawCodexChart();buildCodexPanels();
+setInterval(()=>{codexRotation+=0.02;if(codexMode==='transit')drawCodexChart();},50);
+
+/* ═══════════════════════════════════════════════════
+   QUANTUM NAVIGATION + GEO
+   ═══════════════════════════════════════════════════ */
+const PREFIXES = ['+1','+0','0','-0','+n','n','-n','-1','1','+2','+3'];
+const PCOLORS = ['#3fb950','#a78bfa','#58a6ff','#f0883e','#d2a8ff','#ff7b72','#79c0ff','#f97583','#e3b341','#58d1f0','#f9c74f'];
+const GATES = ['H','CNOT','X','Rz','I','S','T','SWAP','M','CZ','Y'];
+let qPos = [0,0,0];
+
+// Build prefix grid
+const prefixGrid = document.getElementById('prefix-grid');
+PREFIXES.forEach((p,i) => {
+    const cell = document.createElement('div');
+    cell.className = 'prefix-cell';
+    cell.style.color = PCOLORS[i];
+    cell.style.borderColor = PCOLORS[i]+'44';
+    cell.textContent = p;
+    cell.title = `${p} → Gate: ${GATES[i]}`;
+    cell.addEventListener('click', () => {
+        // Navigate quantum space
+        const moves = {'+1':[0,1,0],'+0':[1,0,0],'0':[0,0,0],'-0':[-1,0,0],'+n':[0,0,1],
+                       'n':[0,0,0],'-n':[0,0,-1],'-1':[0,-1,0],'1':[0,0,0],'+2':[0,2,0],'+3':[0,3,0]};
+        const m = moves[p] || [0,0,0];
+        qPos = qPos.map((v,j)=>v+m[j]);
+        updateQuantumDisplay();
+    });
+    prefixGrid.appendChild(cell);
+});
+
+function updateQuantumDisplay(){
+    document.getElementById('q-pos').textContent = `[${qPos.join(', ')}]`;
+    document.getElementById('geo-qpos').textContent = `[${qPos.join(', ')}]`;
+    const idx = Math.abs(qPos[0]+qPos[1]+qPos[2]) % 11;
+    document.getElementById('geo-gate').textContent = `${GATES[idx]} (${PREFIXES[idx]})`;
+    document.getElementById('geo-gate').style.color = PCOLORS[idx];
+    drawQuantumCube();
+    drawGeoQuantumMap();
+}
+
+// 3D Cube
+function drawQuantumCube(){
+    const canvas=document.getElementById('q-cube');
+    const ctx=canvas.getContext('2d');
+    const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#050810'; ctx.fillRect(0,0,W,H);
+
+    const t=Date.now()*0.001;
+    const cx=W/2,cy=H/2;
+    const nodes=PREFIXES.map((_,i)=>{
+        const phi=i/11*Math.PI*2+t*0.3;
+        const theta=Math.acos(1-2*(i+0.5)/11);
+        const r=90;
+        return {
+            x:r*Math.sin(theta)*Math.cos(phi),
+            y:r*Math.sin(theta)*Math.sin(phi),
+            z:r*Math.cos(theta),
+        };
+    });
+
+    // Rotate by quantum position
+    const rx=qPos[0]*0.3,ry=qPos[1]*0.3,rz=qPos[2]*0.3;
+    const projected=nodes.map(n=>{
+        let{x,y,z}=n;
+        // Rotate Y
+        let x1=x*Math.cos(ry+t*0.2)-z*Math.sin(ry+t*0.2);
+        let z1=x*Math.sin(ry+t*0.2)+z*Math.cos(ry+t*0.2);
+        // Rotate X
+        let y1=y*Math.cos(rx)-z1*Math.sin(rx);
+        let z2=y*Math.sin(rx)+z1*Math.cos(rx);
+        const scale=200/(200+z2);
+        return {x:cx+x1*scale,y:cy+y1*scale,z:z2,scale};
+    });
+
+    // Draw connections
+    ctx.lineWidth=0.5;
+    for(let i=0;i<11;i++){
+        for(let j=i+1;j<11;j++){
+            if(Math.abs(i-j)<=2||Math.abs(i-j)>=9){
+                ctx.strokeStyle=`rgba(88,166,255,${0.1*projected[i].scale})`;
+                ctx.beginPath(); ctx.moveTo(projected[i].x,projected[i].y); ctx.lineTo(projected[j].x,projected[j].y); ctx.stroke();
+            }
+        }
+    }
+
+    // Draw nodes
+    projected.forEach((p,i)=>{
+        const r=6*p.scale;
+        ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2);
+        ctx.fillStyle=PCOLORS[i]; ctx.globalAlpha=0.3+0.7*p.scale; ctx.fill();
+        ctx.globalAlpha=1;
+        ctx.font=`${Math.max(8,10*p.scale)}px monospace`;
+        ctx.fillStyle=PCOLORS[i]; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(PREFIXES[i],p.x,p.y);
+    });
+}
+
+// Geo-quantum map
+function drawGeoQuantumMap(){
+    const canvas=document.getElementById('geo-map');
+    const ctx=canvas.getContext('2d');
+    const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#050810'; ctx.fillRect(0,0,W,H);
+
+    const grid=11;
+    const cellW=W/grid,cellH=H/grid;
+
+    for(let y=0;y<grid;y++){
+        for(let x=0;x<grid;x++){
+            const idx=(y*grid+x)%11;
+            const isActive=x===((qPos[0]%grid+grid)%grid)&&y===((qPos[1]%grid+grid)%grid);
+            ctx.fillStyle=isActive?PCOLORS[idx]+'44':'#0a0f1a';
+            ctx.strokeStyle=isActive?PCOLORS[idx]:PCOLORS[idx]+'22';
+            ctx.lineWidth=isActive?2:0.5;
+            ctx.fillRect(x*cellW+1,y*cellH+1,cellW-2,cellH-2);
+            ctx.strokeRect(x*cellW+1,y*cellH+1,cellW-2,cellH-2);
+
+            ctx.font='9px monospace';
+            ctx.fillStyle=PCOLORS[idx]+(isActive?'':'66');
+            ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText(PREFIXES[idx],(x+0.5)*cellW,(y+0.5)*cellH-4);
+            ctx.font='7px monospace';
+            ctx.fillStyle='#47556966';
+            ctx.fillText(GATES[idx],(x+0.5)*cellW,(y+0.5)*cellH+6);
+        }
+    }
+}
+
+// Geo-quantum map click — navigate quantum space
+document.getElementById('geo-map').addEventListener('click',function(e){
+    const rect=this.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)/rect.width;
+    const my=(e.clientY-rect.top)/rect.height;
+    qPos[0]=Math.floor(mx*11);
+    qPos[1]=Math.floor(my*11);
+    updateQuantumDisplay();
+});
+
+// Geo position canvas
+function drawGeoVis(lat,lng){
+    const canvas=document.getElementById('q-geo');
+    const ctx=canvas.getContext('2d');
+    const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#050810'; ctx.fillRect(0,0,W,H);
+
+    // Simple world projection
+    ctx.strokeStyle='#1e2d4a';ctx.lineWidth=0.5;
+    // Grid lines
+    for(let lon=-180;lon<=180;lon+=30){
+        const x=(lon+180)/360*W;
+        ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
+    }
+    for(let la=-90;la<=90;la+=30){
+        const y=(90-la)/180*H;
+        ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+    }
+
+    // Equator + Prime Meridian
+    ctx.strokeStyle='#fbbf2433';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+    ctx.strokeStyle='#fbbf2418';
+    ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke();
+
+    // Simplified continental outlines (lat/lng point clouds)
+    ctx.fillStyle='#1e3a5f';
+    const continents=[
+        // North America
+        [-130,55],[-125,50],[-125,45],[-120,40],[-115,35],[-110,30],[-105,25],[-100,30],[-95,30],[-90,30],[-85,30],[-80,25],[-80,30],[-75,35],[-70,42],[-65,45],[-60,47],[-70,55],[-80,55],[-90,55],[-100,55],[-110,55],[-120,60],[-140,60],[-150,65],[-160,70],[-140,70],[-120,65],
+        // South America
+        [-80,10],[-75,5],[-70,0],[-65,-5],[-60,-10],[-55,-15],[-50,-20],[-45,-25],[-50,-30],[-60,-35],[-65,-40],[-70,-45],[-75,-50],[-70,-20],[-75,-10],[-80,0],
+        // Europe
+        [-10,38],[0,40],[5,43],[10,44],[15,45],[20,45],[25,40],[30,40],[30,45],[25,50],[20,50],[15,52],[10,54],[5,52],[0,50],[-5,48],[-10,43],
+        // Africa
+        [-15,15],[-5,5],[5,5],[10,0],[15,-5],[20,-10],[25,-15],[30,-20],[35,-25],[30,-30],[25,-30],[20,-25],[15,-15],[10,-5],[5,0],[0,5],[-5,10],[10,10],[20,15],[30,15],[35,20],[35,30],[30,33],[10,35],[0,35],[-10,30],[-15,25],
+        // Asia
+        [30,35],[40,40],[50,40],[60,40],[70,40],[80,35],[90,30],[100,25],[110,20],[115,25],[120,30],[125,35],[130,40],[135,45],[140,50],[150,55],[160,60],[170,65],[180,70],[140,55],[130,50],[120,45],[110,40],[100,40],[90,45],[80,50],[70,55],[60,55],[50,50],[40,45],
+        // Australia
+        [115,-20],[120,-15],[130,-15],[140,-18],[145,-20],[150,-25],[150,-30],[145,-35],[140,-38],[135,-35],[130,-30],[125,-25],[120,-25],
+    ];
+    continents.forEach(([lon,lat2])=>{
+        const cx=(lon+180)/360*W;
+        const cy=(90-lat2)/180*H;
+        ctx.beginPath();ctx.arc(cx,cy,1.8,0,Math.PI*2);ctx.fill();
+    });
+
+    // "Click to set location" hint when no GPS
+    if(lat===undefined&&!geoGranted){
+        ctx.font='11px monospace';ctx.fillStyle='#475569';ctx.textAlign='center';
+        ctx.fillText('Click map to set position',W/2,H/2+30);
+        ctx.font='9px monospace';ctx.fillText('or allow location access',W/2,H/2+44);
+    }
+
+    // Position marker
+    if(lat!==undefined&&lng!==undefined){
+        const x=(lng+180)/360*W;
+        const y=(90-lat)/180*H;
+        // Pulse
+        const t=Date.now()*0.003;
+        const r=8+Math.sin(t)*4;
+        ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+        ctx.fillStyle='rgba(34,211,238,0.15)';ctx.fill();
+        ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);
+        ctx.fillStyle='#22d3ee';ctx.fill();
+        ctx.font='10px monospace';ctx.fillStyle='#22d3ee';ctx.textAlign='center';
+        ctx.fillText(`${lat.toFixed(2)}°, ${lng.toFixed(2)}°`,x,y-14);
+    }
+
+    // Labels
+    ctx.font='8px monospace';ctx.fillStyle='#475569';ctx.textAlign='center';
+    [-180,-90,0,90,180].forEach(lon=>{ctx.fillText(lon+'°',(lon+180)/360*W,H-3);});
+}
+drawGeoVis();
+
+// Click on geo canvas to set position manually
+document.getElementById('q-geo').addEventListener('click',function(e){
+    const rect=this.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)/rect.width;
+    const my=(e.clientY-rect.top)/rect.height;
+    const clickLng=mx*360-180;
+    const clickLat=90-my*180;
+    updateGeoDisplay(clickLat,clickLng,null,null,'manual');
+});
+
+// Request geolocation with graceful fallback
+let geoGranted=false, lastGeoLat, lastGeoLng;
+function updateGeoDisplay(lat,lng,alt,acc,source){
+    geoGranted=true;
+    lastGeoLat=lat; lastGeoLng=lng;
+    document.getElementById('geo-lat').textContent=lat.toFixed(6)+'°';
+    document.getElementById('geo-lng').textContent=lng.toFixed(6)+'°';
+    document.getElementById('geo-alt').textContent=alt?alt.toFixed(1)+'m':'N/A';
+    document.getElementById('geo-acc').textContent=(acc?acc.toFixed(0)+'m':'N/A')+(source?' ('+source+')':'');
+    drawGeoVis(lat,lng);
+    // Map quantum position to geo coordinates
+    const geoQ=document.getElementById('geo-qpos');
+    if(geoQ) geoQ.textContent=JSON.stringify(qPos);
+}
+function showGeoFallback(reason){
+    const latEl=document.getElementById('geo-lat');
+    const lngEl=document.getElementById('geo-lng');
+    const altEl=document.getElementById('geo-alt');
+    const accEl=document.getElementById('geo-acc');
+    const msg=reason==='denied'?'Denied — tap to retry':'Unavailable';
+    latEl.innerHTML='<span style="color:#f59e0b;cursor:pointer;" onclick="requestGeoPermission()">📍 '+msg+'</span>';
+    lngEl.textContent='—';altEl.textContent='—';accEl.textContent='—';
+    // Show approximate position using timezone offset as rough longitude estimate
+    const tzOffset=new Date().getTimezoneOffset();
+    const roughLng=-(tzOffset/60)*15; // ~15° per hour offset
+    drawGeoVis(0,roughLng); // equator + estimated longitude
+}
+function requestGeoPermission(){
+    if(!navigator.geolocation){showGeoFallback('unavailable');return;}
+    document.getElementById('geo-lat').innerHTML='<span style="color:#22d3ee;">⏳ Requesting…</span>';
+    navigator.geolocation.getCurrentPosition(pos=>{
+        const{latitude:lat,longitude:lng,altitude:alt,accuracy:acc}=pos.coords;
+        updateGeoDisplay(lat,lng,alt,acc,'GPS');
+        // Start watching after initial success
+        navigator.geolocation.watchPosition(p=>{
+            const c=p.coords;
+            updateGeoDisplay(c.latitude,c.longitude,c.altitude,c.accuracy,'live');
+        },()=>{},{enableHighAccuracy:true,maximumAge:30000});
+    },err=>{
+        if(err.code===1) showGeoFallback('denied');
+        else if(err.code===2) showGeoFallback('unavailable');
+        else showGeoFallback('timeout');
+    },{enableHighAccuracy:true,timeout:10000});
+}
+// Auto-request on load
+if(navigator.geolocation){
+    requestGeoPermission();
+} else {
+    showGeoFallback('unavailable');
+}
+
+// Animation loop — only draw when quantum tab is visible
+function animLoop(){
+    const sec=document.getElementById('sec-quantum');
+    if(sec&&sec.classList.contains('active')){
+        drawQuantumCube();
+    }
+    requestAnimationFrame(animLoop);
+}
+animLoop();
+
+// Initial draw (deferred until quantum tab first shown)
+// Draw immediately in case quantum is the default tab, otherwise the tab-switch handler redraws
+updateQuantumDisplay();
+drawGeoQuantumMap();
+
+// Math stack status
+const stackParts=[];
+if(window.katex) stackParts.push('KaTeX');
+if(window.math) stackParts.push('mathjs');
+if(window.Plotly) stackParts.push('Plotly');
+stackParts.push('11-gate quantum');
+document.getElementById('math-stack-status').textContent=stackParts.join(' · ');
+
+// ===== SERVICE WORKER =====
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+// ===== QUANTUM PREFIX LIVE SYNC =====
+const QP = window.QuantumPrefixes;
+if(QP){
+    QP.broadcastState('freya',{page:'freya',version:'4.4',quantumPosition:qPos});
+    QP.onStateChange(s=>{ if(s.quantumPosition) { qPos=s.quantumPosition; updateQuantumDisplay(); }});
+}
+try{
+    const historyBus = new BroadcastChannel('history-search');
+    historyBus.postMessage({type:'freya-ready',page:'freya',timestamp:Date.now()});
+    historyBus.close();
+}catch(_){}
+
+})();
+</script>
+</body>
+</html>
