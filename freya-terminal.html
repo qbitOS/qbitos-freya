@@ -1,0 +1,91 @@
+<!-- beyondBINARY quantum-prefixed | uvspeed | {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1} -->
+<!-- Copyright (c) 2026 qbitOS / ugrad.ai. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Source: https://github.com/qbitOS/qbitos-freya -->
+<!-- Provenance: freya-terminal-surface -->
+<!-- DAC/Prefix/Steno/Iron-Line/Preflight/search-history controls -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreyaUnits Terminal</title>
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@13/lib/browser/math.min.js"></script>
+  <script src="quantum-prefixes.js"></script>
+  <script src="qbit-dac.js"></script>
+  <script src="qbit-steno.js"></script>
+  <script src="qbit-preflight.js"></script>
+  <script src="history-search-engine.js"></script>
+  <script src="tools/freya-math-engine.js"></script>
+  <style>
+    body { margin: 0; background: #070b14; color: #dbeafe; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .wrap { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+    .term { border: 1px solid #1f2a44; border-radius: 12px; background: #0a1020; overflow: hidden; }
+    .hdr { padding: 10px 12px; background: #111a2e; font-size: 12px; color: #93c5fd; display:flex; justify-content:space-between; }
+    #out { min-height: 280px; max-height: 420px; overflow: auto; padding: 12px; white-space: pre-wrap; }
+    .row { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #1f2a44; }
+    input { flex: 1; border: 1px solid #2b3a5f; border-radius: 8px; background: #0b1326; color: #e2e8f0; padding: 10px; }
+    button { border: 1px solid #4f46e5; border-radius: 8px; background: #312e81; color: #fff; padding: 10px 12px; cursor: pointer; }
+    .links { margin-top: 12px; font-size: 13px; }
+    a { color: #7dd3fc; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="term">
+      <div class="hdr">
+        <span>FreyaUnits Terminal Lane</span>
+        <span>Commands: `econ tb cost [pctA] [pctB]`, `expr formula`</span>
+      </div>
+      <div id="out"></div>
+      <div class="row">
+        <input id="cmd" value="econ 474000000 400 20 2" />
+        <button id="run">Run</button>
+      </div>
+    </div>
+    <div class="links">
+      <a href="index.html">Open FreyaUnits</a> ·
+      <a href="freya-landing.html">Open Freya Launch</a>
+    </div>
+  </div>
+  <script>
+    // ===== QUANTUM PREFIX LIVE SYNC =====
+    const out = document.getElementById('out');
+    const cmd = document.getElementById('cmd');
+    const run = document.getElementById('run');
+    const iron = new BroadcastChannel('iron-line');
+    const historyBus = new BroadcastChannel('history-search');
+    function write(line) { out.textContent += line + '\n'; out.scrollTop = out.scrollHeight; }
+    function asNum(v, d) { const n = Number(v); return Number.isFinite(n) ? n : d; }
+    function exec(input) {
+      const parts = String(input || '').trim().split(/\s+/);
+      const op = parts[0];
+      if (!op) return;
+      if (op === 'econ') {
+        const tb = asNum(parts[1], 0), cost = asNum(parts[2], 0), pctA = asNum(parts[3], 20), pctB = asNum(parts[4], 2);
+        const payload = window.FreyaMathEngine.dataEconomics(tb, cost, pctA, pctB);
+        write(JSON.stringify(payload, null, 2));
+        iron.postMessage({ type: 'freya-terminal-econ', payload, timestamp: Date.now() });
+        return;
+      }
+      if (op === 'expr') {
+        const expr = parts.slice(1).join(' ');
+        const res = window.FreyaMathEngine.evalExpression(expr);
+        write(JSON.stringify(res, null, 2));
+        return;
+      }
+      write('Unknown command. Use `econ` or `expr`.');
+    }
+    run.addEventListener('click', () => exec(cmd.value));
+    cmd.addEventListener('keydown', (e) => { if (e.key === 'Enter') exec(cmd.value); });
+    historyBus.postMessage({ type: 'freya-terminal-ready', timestamp: Date.now() });
+    if (window.QuantumPrefixes) {
+      const QP = window.QuantumPrefixes;
+      QP.broadcastState('freya-terminal', { role: 'terminal', ts: Date.now() });
+      QP.onStateChange(function(){});
+    }
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    write('Freya terminal ready.');
+  </script>
+</body>
+</html>

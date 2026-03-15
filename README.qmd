@@ -1,3 +1,10 @@
+<!--
+Copyright (c) 2026 qbitOS / ugrad.ai. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+Source: https://github.com/qbitOS/qbitos-freya
+Provenance: freya-repo-readme
+-->
+
 # qbitos{freya} — FreyaUnits
 
 Canonical FreyaUnits deployment surface for:
@@ -14,9 +21,24 @@ Canonical FreyaUnits deployment surface for:
 - `history-search-engine.js`
 - `sw.js`
 
+## Surfaces in this repo
+
+- `index.html` — full FreyaUnits web app (uvspeed parity)
+- `freya-landing.html` — launch/showcase page for fast entry
+- `freya-terminal.html` — terminal lane for `econ` and `expr` commands
+- `tools/freya-math-engine.js` — reusable browser/Node math engine extension
+- `tools/freya-math-cli.py` — terminal CLI for quick data-econ + expression math
+
 ## Control Envelope
 
 `DAC/Prefix/Steno/Iron-Line/Preflight/search-history controls`
+
+## Terminal usage
+
+```bash
+uv run python tools/freya-math-cli.py econ --tb 474000000 --cost 400 --pct-a 20 --pct-b 2
+uv run python tools/freya-math-cli.py expr "sin(pi/4)^2 + cos(pi/4)^2"
+```
 
 ## Source
 

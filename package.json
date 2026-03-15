@@ -1,0 +1,10 @@
+{
+  "name": "qbitos-freya",
+  "private": true,
+  "version": "0.1.0",
+  "description": "FreyaUnits web + terminal math extensions",
+  "scripts": {
+    "math:econ": "uv run python tools/freya-math-cli.py econ --tb 474000000 --cost 400 --pct-a 20 --pct-b 2",
+    "math:expr": "uv run python tools/freya-math-cli.py expr \"sin(pi/4)^2 + cos(pi/4)^2\""
+  }
+}
