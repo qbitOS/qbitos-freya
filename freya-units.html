@@ -115,6 +115,16 @@
             font-size:1rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;
         }
         .card-title .icon{font-size:1.2em;}
+        .card-light{
+            background:#f8fafc;
+            border-color:#cbd5e1;
+            color:#0f172a;
+        }
+        .card-light::before{
+            background:linear-gradient(90deg,transparent,#94a3b8,transparent);
+            opacity:0.45;
+        }
+        .card-light .card-title{color:#0f172a;}
 
         /* Converter grid */
         .convert-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:end;}
@@ -180,8 +190,8 @@
         /* Canvas containers */
         .canvas-wrap{background:var(--bg);border-radius:var(--radius-sm);padding:2px;overflow:hidden;}
         .scale-wrap{
-            background:linear-gradient(180deg,#0b1326 0%,#081120 100%);
-            border:1px solid #1e2d4a;
+            background:linear-gradient(180deg,#f8fafc 0%,#eef2ff 100%);
+            border:1px solid #cbd5e1;
         }
         #scale-canvas{
             height:80px;
@@ -343,7 +353,7 @@
             </div>
 
             <!-- Log scale visualization -->
-            <div class="card">
+            <div class="card card-light">
                 <div class="card-title"><span class="icon">📏</span> Logarithmic Scale <span style="font-size:0.625rem;color:var(--text-muted);margin-left:auto;">v4.4</span></div>
                 <div class="canvas-wrap scale-wrap"><canvas id="scale-canvas" width="1100" height="80"></canvas></div>
             </div>
@@ -861,8 +871,8 @@ function drawScale(){
     const W = sized.W, H = sized.H;
     ctx.clearRect(0,0,W,H);
     const bg = ctx.createLinearGradient(0,0,0,H);
-    bg.addColorStop(0,'#0b1326');
-    bg.addColorStop(1,'#081120');
+    bg.addColorStop(0,'#f8fafc');
+    bg.addColorStop(1,'#eef2ff');
     ctx.fillStyle=bg;
     ctx.fillRect(0,0,W,H);
 
@@ -871,9 +881,9 @@ function drawScale(){
     units.forEach(u=>{
         const log = Math.log10(u.factor);
         const x = ((log-minLog)/range)*(W-40)+20;
-        ctx.fillStyle='rgba(167,139,250,0.32)';
+        ctx.fillStyle='rgba(148,163,184,0.65)';
         ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
-        ctx.fillStyle='#a78bfa';
+        ctx.fillStyle='#334155';
         ctx.font='9px monospace';
         ctx.textAlign='center';
         ctx.fillText(u.sym,x,10);
@@ -884,8 +894,8 @@ function drawScale(){
         const meters = val*fromU.factor;
         const log = Math.log10(meters);
         const x = ((log-minLog)/range)*(W-40)+20;
-        ctx.fillStyle='rgba(124,58,237,0.22)'; ctx.fillRect(x-10,0,20,H);
-        ctx.fillStyle='#c084fc'; ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
+        ctx.fillStyle='rgba(59,130,246,0.16)'; ctx.fillRect(x-10,0,20,H);
+        ctx.fillStyle='#1d4ed8'; ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
         ctx.beginPath(); ctx.moveTo(x,H-4); ctx.lineTo(x-6,H); ctx.lineTo(x+6,H); ctx.fill();
     }
 }
