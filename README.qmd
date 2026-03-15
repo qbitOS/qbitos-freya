@@ -23,8 +23,9 @@ Canonical FreyaUnits deployment surface for:
 
 ## Surfaces in this repo
 
-- `index.html` — full FreyaUnits web app (uvspeed parity)
+- `index.html` — start route that opens the landing surface
 - `freya-landing.html` — launch/showcase page for fast entry
+- `freya-units.html` — full FreyaUnits web app (uvspeed parity)
 - `freya-terminal.html` — terminal lane for `econ` and `expr` commands
 - `tools/freya-math-engine.js` — reusable browser/Node math engine extension
 - `tools/freya-math-cli.py` — terminal CLI for quick data-econ + expression math
