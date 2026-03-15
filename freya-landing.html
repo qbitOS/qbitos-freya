@@ -35,7 +35,7 @@ code{font-family:'SF Mono','Fira Code',monospace;font-size:.8125em;background:#0
 .n2{width:500px;height:500px;background:radial-gradient(circle,#06b6d4,transparent);bottom:-5%;right:-8%;}
 .n3{width:400px;height:400px;background:radial-gradient(circle,#8b5cf6,transparent);top:40%;left:50%;}
 .hero-content{position:relative;z-index:1;max-width:760px;}
-.hero-badge{display:inline-block;font-family:'SF Mono',monospace;font-size:.6875rem;color:#64748b;border:1px solid #1e2d4a;border-radius:999px;padding:4px 14px;margin-bottom:24px;background:rgba(10,15,26,0.8);backdrop-filter:blur(8px);}
+.hero-badge{display:inline-block;font-family:'SF Mono',monospace;font-size:.6875rem;color:#334155;border:1px solid #cbd5e1;border-radius:999px;padding:4px 14px;margin-bottom:24px;background:rgba(248,250,252,0.95);backdrop-filter:blur(8px);}
 .hero-badge .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#34d399;margin-right:6px;vertical-align:middle;}
 .hero h1{font-size:clamp(2.5rem,6vw,4.5rem);font-weight:800;letter-spacing:-2px;line-height:1.05;margin-bottom:16px;}
 .hero h1 .gradient{background:linear-gradient(135deg,#7c3aed 0%,#06b6d4 40%,#a78bfa 70%,#22d3ee 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
@@ -44,13 +44,13 @@ code{font-family:'SF Mono','Fira Code',monospace;font-size:.8125em;background:#0
 .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;border-radius:8px;border:none;font-size:.9375rem;font-weight:600;cursor:pointer;text-decoration:none;transition:all .2s;font-family:inherit;}
 .btn-primary{background:linear-gradient(135deg,#7c3aed,#06b6d4,#a78bfa,#22d3ee);background-size:300% 300%;animation:gradShift 4s ease infinite;color:#050810;}
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(124,58,237,0.3);text-decoration:none;}
-.btn-secondary{background:rgba(10,15,26,0.8);color:#e2e8f0;border:1px solid #1e2d4a;backdrop-filter:blur(8px);}
-.btn-secondary:hover{background:#101828;border-color:#334155;text-decoration:none;}
+.btn-secondary{background:rgba(248,250,252,0.95);color:#1e293b;border:1px solid #cbd5e1;backdrop-filter:blur(8px);}
+.btn-secondary:hover{background:#ffffff;border-color:#94a3b8;text-decoration:none;}
 @keyframes gradShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 
-.stats-ribbon{display:flex;justify-content:center;gap:40px;padding:32px 24px;border-top:1px solid #1e2d4a;border-bottom:1px solid #1e2d4a;background:#0a0f1a;flex-wrap:wrap;}
+.stats-ribbon{display:flex;justify-content:center;gap:40px;padding:32px 24px;border-top:1px solid #cbd5e1;border-bottom:1px solid #cbd5e1;background:#f8fafc;flex-wrap:wrap;}
 .stat{text-align:center;}.stat .number{font-family:'SF Mono',monospace;font-size:2rem;font-weight:800;background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-.stat .label{font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-top:2px;}
+.stat .label{font-size:.75rem;color:#334155;text-transform:uppercase;letter-spacing:1px;margin-top:2px;}
 
 section{max-width:1100px;margin:0 auto;padding:80px 24px;}
 section h2{font-size:2rem;font-weight:700;letter-spacing:-.5px;margin-bottom:8px;}
@@ -59,14 +59,14 @@ section h2{font-size:2rem;font-weight:700;letter-spacing:-.5px;margin-bottom:8px
 .fade-up.visible{opacity:1;transform:translateY(0);}
 
 .scale-wrap{width:100%;max-width:900px;margin:0 auto 48px;}
-.scale-canvas{width:100%;height:160px;border-radius:12px;border:1px solid #1e2d4a;background:rgba(10,15,26,0.7);cursor:crosshair;display:block;}
-.scale-hint{font-size:.6875rem;color:#475569;margin-top:8px;text-align:center;font-family:'SF Mono',monospace;}
+.scale-canvas{width:100%;height:160px;border-radius:12px;border:1px solid #cbd5e1;background:#f8fafc;cursor:crosshair;display:block;}
+.scale-hint{font-size:.6875rem;color:#334155;margin-top:8px;text-align:center;font-family:'SF Mono',monospace;}
 
 .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
-.cat-card{background:#0a0f1a;border:1px solid #1e2d4a;border-radius:12px;padding:20px;transition:all .2s;}
-.cat-card:hover{border-color:#334155;transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.4);}
+.cat-card{background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;padding:20px;transition:all .2s;}
+.cat-card:hover{border-color:#94a3b8;transform:translateY(-2px);box-shadow:0 6px 20px rgba(15,23,42,0.16);}
 .cat-card h4{font-size:.875rem;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px;}
-.cat-card .units{font-size:.6875rem;color:#64748b;line-height:1.4;}
+.cat-card .units{font-size:.6875rem;color:#334155;line-height:1.4;}
 
 .converter-demo{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:end;max-width:700px;margin:0 auto 32px;}
 .conv-group{display:flex;flex-direction:column;gap:4px;}
@@ -79,19 +79,19 @@ section h2{font-size:2rem;font-weight:700;letter-spacing:-.5px;margin-bottom:8px
 .conv-quantum{text-align:center;font-size:.6875rem;color:#64748b;font-family:'SF Mono',monospace;line-height:1.8;}
 
 .roadmap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
-.road-card{background:#0a0f1a;border:1px solid #1e2d4a;border-radius:12px;padding:24px;transition:all .25s;}
-.road-card:hover{border-color:#334155;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.4);}
+.road-card{background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;padding:24px;transition:all .25s;}
+.road-card:hover{border-color:#94a3b8;transform:translateY(-2px);box-shadow:0 8px 24px rgba(15,23,42,0.16);}
 .road-card h4{font-size:1rem;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
 .road-card .chip{font-size:.5625rem;font-family:'SF Mono',monospace;padding:2px 8px;border-radius:999px;}
 .road-card ul{list-style:none;padding:0;}
-.road-card ul li{font-size:.75rem;color:#94a3b8;padding:3px 0;display:flex;gap:8px;}
+.road-card ul li{font-size:.75rem;color:#334155;padding:3px 0;display:flex;gap:8px;}
 .road-card ul li::before{content:'';display:inline-block;width:4px;height:4px;border-radius:50%;margin-top:6px;flex-shrink:0;}
 
 .cta-section{position:relative;text-align:center;padding:100px 24px;overflow:hidden;}
 #cta-canvas{position:absolute;inset:0;z-index:0;}
 .cta-content{position:relative;z-index:1;}
 
-.footer-bar{padding:24px;text-align:center;border-top:1px solid #1e2d4a;font-size:.6875rem;color:#475569;font-family:'SF Mono',monospace;}
+.footer-bar{padding:24px;text-align:center;border-top:1px solid #cbd5e1;font-size:.6875rem;color:#334155;background:#f8fafc;font-family:'SF Mono',monospace;}
 
 @media(max-width:768px){
     .hero h1{font-size:2rem;letter-spacing:-1px;}
@@ -127,7 +127,7 @@ section h2{font-size:2rem;font-weight:700;letter-spacing:-.5px;margin-bottom:8px
         </p>
         <div class="hero-actions">
             <a class="btn btn-primary" href="freya-units.html">Open Converter</a>
-            <a class="btn btn-secondary" href="https://github.com/fornevercollective/uvspeed" target="_blank">View Source</a>
+            <a class="btn btn-secondary" href="https://github.com/qbitOS/qbitos-freya" target="_blank">View Source</a>
         </div>
     </div>
 </div>
@@ -146,7 +146,7 @@ section h2{font-size:2rem;font-weight:700;letter-spacing:-.5px;margin-bottom:8px
     <p class="section-sub fade-up">51 orders of magnitude on a single canvas. Hover to explore, click to convert.</p>
     <div class="scale-wrap fade-up">
         <canvas class="scale-canvas" id="scale-canvas" height="160"></canvas>
-        <div class="scale-hint">10<sup>-35</sup> m (Planck length) ←→ 10<sup>16</sup> m (Parsec) &middot; hover for details</div>
+        <div class="scale-hint">FreyaUnits v4.4 &middot; 10<sup>-35</sup> m (Planck length) ←→ 10<sup>16</sup> m (Parsec) &middot; hover for details</div>
     </div>
 </section>
 
@@ -252,7 +252,7 @@ section h2{font-size:2rem;font-weight:700;letter-spacing:-.5px;margin-bottom:8px
         <div class="hero-actions">
             <a class="btn btn-primary" href="freya-units.html">Open FreyaUnits</a>
             <a class="btn btn-secondary" href="freya-terminal.html">Open Terminal Lane</a>
-            <a class="btn btn-secondary" href="history.html">Open History</a>
+            <a class="btn btn-secondary" href="https://qbitos.github.io/uvspeed/history.html">Open History</a>
         </div>
     </div>
 </div>
@@ -260,8 +260,8 @@ section h2{font-size:2rem;font-weight:700;letter-spacing:-.5px;margin-bottom:8px
 <div class="rainbow"><span class="r1"></span><span class="r2"></span><span class="r3"></span><span class="r4"></span><span class="r5"></span><span class="r6"></span></div>
 
 <div class="footer-bar">
-    beyondBINARY &middot; {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1} &middot; fornevercollective<br>
-    <a href="https://github.com/fornevercollective/uvspeed" style="color:#64748b;">github.com/fornevercollective/uvspeed</a>
+    beyondBINARY &middot; {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1} &middot; qbitOS<br>
+    <a href="https://github.com/qbitOS/qbitos-freya" style="color:#334155;">github.com/qbitOS/qbitos-freya</a>
 </div>
 
 <script src="quantum-prefixes.js"></script>
@@ -327,13 +327,16 @@ function initScale(){
     let hoverX=-1;
     function draw(mx){
         const W=cv.width,H=cv.height;
-        ctx.fillStyle='#050810';ctx.fillRect(0,0,W,H);
+        const grad=ctx.createLinearGradient(0,0,0,H);
+        grad.addColorStop(0,'#f8fafc');
+        grad.addColorStop(1,'#eef2ff');
+        ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
         // Grid lines
         for(let lg=minLog;lg<=maxLog;lg+=5){
             const x=((lg-minLog)/range)*(W-20)+10;
-            ctx.strokeStyle='rgba(30,45,74,0.5)';ctx.lineWidth=1;
+            ctx.strokeStyle='rgba(148,163,184,0.7)';ctx.lineWidth=1;
             ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
-            ctx.fillStyle='#475569';ctx.font='9px monospace';ctx.textAlign='center';
+            ctx.fillStyle='#334155';ctx.font='9px monospace';ctx.textAlign='center';
             ctx.fillText('10^'+lg,x,H-4);
         }
         // Unit markers
@@ -348,9 +351,9 @@ function initScale(){
         if(mx>=0&&mx<W){
             const log=minLog+((mx-10)/(W-20))*range;
             const meters=Math.pow(10,log);
-            ctx.fillStyle='rgba(124,58,237,0.15)';ctx.fillRect(mx-8,0,16,H);
+            ctx.fillStyle='rgba(124,58,237,0.12)';ctx.fillRect(mx-8,0,16,H);
             ctx.fillStyle='#a78bfa';ctx.fillRect(mx-1,8,3,H-24);
-            ctx.fillStyle='#e2e8f0';ctx.font='bold 11px monospace';ctx.textAlign='center';
+            ctx.fillStyle='#0f172a';ctx.font='bold 11px monospace';ctx.textAlign='center';
             ctx.fillText(meters.toExponential(2)+' m',mx,H-16);
             // Find nearest unit
             let nearest=UNITS[0],nd=Infinity;
