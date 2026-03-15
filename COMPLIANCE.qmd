@@ -1,0 +1,20 @@
+<!--
+Copyright (c) 2026 qbitOS / ugrad.ai. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+Source: https://github.com/qbitOS/qbitos-freya
+Provenance: org-wide-compliance-baseline-seed
+-->
+
+# qbitos{qbitos-freya} Compliance Baseline
+
+## Compliance Root
+
+- Canonical policy: https://github.com/qbitOS/compliance
+
+## Runtime Path
+
+`DAC -> Iron Line -> Prefixes -> Quantum Gutter -> .qbit -> preflight`
+
+## Control Envelope
+
+`DAC/Prefix/Steno/Iron-Line/Preflight/search-history controls`
