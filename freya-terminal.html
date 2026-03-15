@@ -2,14 +2,15 @@
 <!-- Copyright (c) 2026 qbitOS / ugrad.ai. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Source: https://github.com/qbitOS/qbitos-freya -->
-<!-- Provenance: freya-terminal-surface -->
+<!-- Provenance: freya-terminal-layout-parity -->
 <!-- DAC/Prefix/Steno/Iron-Line/Preflight/search-history controls -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FreyaUnits Terminal</title>
+  <meta name="theme-color" content="#050810">
+  <title>FreyaUnits Terminal Lane</title>
   <script src="https://cdn.jsdelivr.net/npm/mathjs@13/lib/browser/math.min.js"></script>
   <script src="quantum-prefixes.js"></script>
   <script src="qbit-dac.js"></script>
@@ -18,20 +19,76 @@
   <script src="history-search-engine.js"></script>
   <script src="tools/freya-math-engine.js"></script>
   <style>
-    body { margin: 0; background: #070b14; color: #dbeafe; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .wrap { max-width: 980px; margin: 24px auto; padding: 0 16px; }
-    .term { border: 1px solid #1f2a44; border-radius: 12px; background: #0a1020; overflow: hidden; }
-    .hdr { padding: 10px 12px; background: #111a2e; font-size: 12px; color: #93c5fd; display:flex; justify-content:space-between; }
-    #out { min-height: 280px; max-height: 420px; overflow: auto; padding: 12px; white-space: pre-wrap; }
-    .row { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #1f2a44; }
-    input { flex: 1; border: 1px solid #2b3a5f; border-radius: 8px; background: #0b1326; color: #e2e8f0; padding: 10px; }
-    button { border: 1px solid #4f46e5; border-radius: 8px; background: #312e81; color: #fff; padding: 10px 12px; cursor: pointer; }
-    .links { margin-top: 12px; font-size: 13px; }
-    a { color: #7dd3fc; text-decoration: none; }
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+    html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+    body{background:#050810;color:#e2e8f0;font-family:-apple-system,'SF Pro Display',BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;line-height:1.6;overflow-x:hidden;}
+    a{color:#7c3aed;text-decoration:none;}a:hover{text-decoration:underline;}
+
+    .rainbow{display:flex;flex-shrink:0;height:3px;width:100%;}
+    .rainbow span{flex:1;}
+    .r1{background:#7c3aed;}.r2{background:#06b6d4;}.r3{background:#a78bfa;}.r4{background:#22d3ee;}.r5{background:#8b5cf6;}.r6{background:#34d399;}
+    .rainbow-glow{height:60px;width:100%;background:linear-gradient(180deg,rgba(124,58,237,0.08) 0%,rgba(6,182,212,0.06) 33%,rgba(139,92,246,0.04) 66%,transparent 100%);}
+
+    .hero{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:44vh;padding:56px 20px 30px;text-align:center;overflow:hidden;}
+    #hero-canvas{position:absolute;inset:0;z-index:0;}
+    .nebula{position:absolute;border-radius:50%;filter:blur(120px);opacity:0.12;pointer-events:none;z-index:0;}
+    .n1{width:500px;height:500px;background:radial-gradient(circle,#7c3aed,transparent);top:-20%;left:-10%;}
+    .n2{width:420px;height:420px;background:radial-gradient(circle,#06b6d4,transparent);bottom:-15%;right:-10%;}
+    .hero-content{position:relative;z-index:1;max-width:840px;}
+    .hero-badge{display:inline-block;font-family:'SF Mono',monospace;font-size:.6875rem;color:#334155;border:1px solid #cbd5e1;border-radius:999px;padding:4px 14px;margin-bottom:18px;background:rgba(248,250,252,0.95);}
+    .hero-badge .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#34d399;margin-right:6px;vertical-align:middle;}
+    .hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;letter-spacing:-1px;line-height:1.1;margin-bottom:10px;}
+    .hero h1 .gradient{background:linear-gradient(135deg,#7c3aed 0%,#06b6d4 40%,#a78bfa 70%,#22d3ee 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    .hero p{font-size:1rem;color:#64748b;max-width:640px;margin:0 auto 20px;}
+    .hero-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:8px;border:none;font-size:.9rem;font-weight:600;cursor:pointer;text-decoration:none;transition:all .2s;font-family:inherit;}
+    .btn-primary{background:linear-gradient(135deg,#7c3aed,#06b6d4,#a78bfa,#22d3ee);background-size:300% 300%;animation:gradShift 4s ease infinite;color:#050810;}
+    .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(124,58,237,0.26);text-decoration:none;}
+    .btn-secondary{background:rgba(248,250,252,0.95);color:#1e293b;border:1px solid #cbd5e1;}
+    .btn-secondary:hover{background:#ffffff;border-color:#94a3b8;text-decoration:none;}
+    @keyframes gradShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+    .panel{max-width:980px;margin:0 auto;padding:0 16px 20px;}
+    .term{border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc;overflow:hidden;box-shadow:0 8px 30px rgba(15,23,42,0.16);}
+    .hdr{padding:12px 14px;background:#eef2ff;font-size:12px;color:#334155;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid #cbd5e1;font-family:'SF Mono',monospace;}
+    #out{min-height:280px;max-height:420px;overflow:auto;padding:14px;white-space:pre-wrap;background:#ffffff;color:#0f172a;font-family:'SF Mono',monospace;}
+    .row{display:flex;gap:8px;padding:12px;border-top:1px solid #cbd5e1;background:#f8fafc;}
+    input{flex:1;border:1px solid #cbd5e1;border-radius:8px;background:#ffffff;color:#0f172a;padding:10px;font-family:'SF Mono',monospace;}
+    button{border:1px solid #7c3aed;border-radius:8px;background:#7c3aed;color:#fff;padding:10px 14px;cursor:pointer;font-weight:600;}
+    button:hover{background:#6d28d9;}
+
+    .footer-bar{padding:24px;text-align:center;border-top:1px solid #cbd5e1;font-size:.6875rem;color:#334155;background:#f8fafc;font-family:'SF Mono',monospace;margin-top:30px;}
+
+    @media(max-width:768px){
+      .hero{min-height:40vh;padding:44px 16px 24px;}
+      .hero h1{font-size:1.9rem;}
+      .hero p{font-size:.92rem;}
+      .row{flex-direction:column;}
+      button{width:100%;}
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="rainbow"><span class="r1"></span><span class="r2"></span><span class="r3"></span><span class="r4"></span><span class="r5"></span><span class="r6"></span></div>
+  <div class="rainbow-glow"></div>
+
+  <div class="hero">
+    <canvas id="hero-canvas"></canvas>
+    <div class="nebula n1"></div>
+    <div class="nebula n2"></div>
+    <div class="hero-content">
+      <div class="hero-badge"><span class="dot"></span> Terminal lane · econ + expr · qbitOS surface</div>
+      <h1><span class="gradient">Freya Terminal</span></h1>
+      <p>Run fast economic and expression commands with the same visual language and navigation pattern as Freya landing.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="freya-units.html">Open FreyaUnits</a>
+        <a class="btn btn-secondary" href="freya-landing.html">Open Landing</a>
+        <a class="btn btn-secondary" href="https://github.com/qbitOS/qbitos-freya" target="_blank">View Source</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
     <div class="term">
       <div class="hdr">
         <span>FreyaUnits Terminal Lane</span>
@@ -39,53 +96,70 @@
       </div>
       <div id="out"></div>
       <div class="row">
-        <input id="cmd" value="econ 474000000 400 20 2" />
+        <input id="cmd" value="econ 474000000 400 20 2">
         <button id="run">Run</button>
       </div>
     </div>
-    <div class="links">
-      <a href="freya-units.html">Open FreyaUnits</a> ·
-      <a href="freya-landing.html">Open Freya Launch</a>
-    </div>
   </div>
+
+  <div class="footer-bar">
+    beyondBINARY &middot; {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1} &middot; qbitOS<br>
+    <a href="https://github.com/qbitOS/qbitos-freya" style="color:#334155;">github.com/qbitOS/qbitos-freya</a>
+  </div>
+
   <script>
-    // ===== QUANTUM PREFIX LIVE SYNC =====
-    const out = document.getElementById('out');
-    const cmd = document.getElementById('cmd');
-    const run = document.getElementById('run');
-    const iron = new BroadcastChannel('iron-line');
-    const historyBus = new BroadcastChannel('history-search');
-    function write(line) { out.textContent += line + '\n'; out.scrollTop = out.scrollHeight; }
-    function asNum(v, d) { const n = Number(v); return Number.isFinite(n) ? n : d; }
-    function exec(input) {
-      const parts = String(input || '').trim().split(/\s+/);
-      const op = parts[0];
-      if (!op) return;
-      if (op === 'econ') {
-        const tb = asNum(parts[1], 0), cost = asNum(parts[2], 0), pctA = asNum(parts[3], 20), pctB = asNum(parts[4], 2);
-        const payload = window.FreyaMathEngine.dataEconomics(tb, cost, pctA, pctB);
-        write(JSON.stringify(payload, null, 2));
-        iron.postMessage({ type: 'freya-terminal-econ', payload, timestamp: Date.now() });
-        return;
+    'use strict';
+    (function(){
+      const out = document.getElementById('out');
+      const cmd = document.getElementById('cmd');
+      const run = document.getElementById('run');
+      const iron = new BroadcastChannel('iron-line');
+      const historyBus = new BroadcastChannel('history-search');
+      function write(line){ out.textContent += line + '\n'; out.scrollTop = out.scrollHeight; }
+      function asNum(v,d){ const n = Number(v); return Number.isFinite(n) ? n : d; }
+      function exec(input){
+        const parts = String(input || '').trim().split(/\s+/);
+        const op = parts[0];
+        if(!op) return;
+        if(op === 'econ'){
+          const tb = asNum(parts[1], 0), cost = asNum(parts[2], 0), pctA = asNum(parts[3], 20), pctB = asNum(parts[4], 2);
+          const payload = window.FreyaMathEngine.dataEconomics(tb, cost, pctA, pctB);
+          write(JSON.stringify(payload, null, 2));
+          iron.postMessage({ type: 'freya-terminal-econ', payload, timestamp: Date.now() });
+          return;
+        }
+        if(op === 'expr'){
+          const expr = parts.slice(1).join(' ');
+          const res = window.FreyaMathEngine.evalExpression(expr);
+          write(JSON.stringify(res, null, 2));
+          return;
+        }
+        write('Unknown command. Use `econ` or `expr`.');
       }
-      if (op === 'expr') {
-        const expr = parts.slice(1).join(' ');
-        const res = window.FreyaMathEngine.evalExpression(expr);
-        write(JSON.stringify(res, null, 2));
-        return;
+
+      // Hero starfield (same style family as landing)
+      function initStarfield(cvs, count){
+        if(!cvs) return;
+        const ctx = cvs.getContext('2d');
+        const stars = [];
+        function resize(){ cvs.width = cvs.parentElement.offsetWidth; cvs.height = cvs.parentElement.offsetHeight; }
+        resize(); window.addEventListener('resize', resize);
+        for(let i=0;i<count;i++){ stars.push({x:Math.random()*2000,y:Math.random()*800,r:Math.random()*1.2+.2,a:Math.random()*.6+.15,tw:Math.random()*2+.5,ph:Math.random()*Math.PI*2}); }
+        let t = 0; (function draw(){ t += .016; ctx.clearRect(0,0,cvs.width,cvs.height); stars.forEach(s=>{ const fl = s.a*(0.6+0.4*Math.sin(t*s.tw+s.ph)); ctx.beginPath(); ctx.arc(s.x%cvs.width,s.y%cvs.height,s.r,0,Math.PI*2); ctx.fillStyle='rgba(167,139,250,'+fl+')'; ctx.fill(); }); requestAnimationFrame(draw); })();
       }
-      write('Unknown command. Use `econ` or `expr`.');
-    }
-    run.addEventListener('click', () => exec(cmd.value));
-    cmd.addEventListener('keydown', (e) => { if (e.key === 'Enter') exec(cmd.value); });
-    historyBus.postMessage({ type: 'freya-terminal-ready', timestamp: Date.now() });
-    if (window.QuantumPrefixes) {
-      const QP = window.QuantumPrefixes;
-      QP.broadcastState('freya-terminal', { role: 'terminal', ts: Date.now() });
-      QP.onStateChange(function(){});
-    }
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-    write('Freya terminal ready.');
+
+      run.addEventListener('click', () => exec(cmd.value));
+      cmd.addEventListener('keydown', (e) => { if (e.key === 'Enter') exec(cmd.value); });
+      historyBus.postMessage({ type: 'freya-terminal-ready', timestamp: Date.now() });
+      if(window.QuantumPrefixes){
+        const QP = window.QuantumPrefixes;
+        QP.broadcastState('freya-terminal', { role: 'terminal', ts: Date.now() });
+        QP.onStateChange(function(){});
+      }
+      if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+      initStarfield(document.getElementById('hero-canvas'), 180);
+      write('Freya terminal ready.');
+    })();
   </script>
 </body>
 </html>
