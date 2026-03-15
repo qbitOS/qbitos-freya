@@ -179,6 +179,14 @@
 
         /* Canvas containers */
         .canvas-wrap{background:var(--bg);border-radius:var(--radius-sm);padding:2px;overflow:hidden;}
+        .scale-wrap{
+            background:linear-gradient(180deg,#0b1326 0%,#081120 100%);
+            border:1px solid #1e2d4a;
+        }
+        #scale-canvas{
+            height:80px;
+            background:transparent;
+        }
         canvas{display:block;width:100%;border-radius:var(--radius-sm);}
 
         /* Celestial chart */
@@ -338,7 +346,7 @@
             <!-- Log scale visualization -->
             <div class="card">
                 <div class="card-title"><span class="icon">📏</span> Logarithmic Scale</div>
-                <div class="canvas-wrap"><canvas id="scale-canvas" width="1100" height="80"></canvas></div>
+                <div class="canvas-wrap scale-wrap"><canvas id="scale-canvas" width="1100" height="80"></canvas></div>
             </div>
 
             <!-- Full conversion table -->
@@ -825,20 +833,45 @@ function convert(){
     drawScale();
 }
 
+function syncHiDpiCanvas(canvas, cssHeight){
+    if(!canvas) return null;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    if(cssHeight){ canvas.style.height = cssHeight + 'px'; }
+    const rect = canvas.getBoundingClientRect();
+    const cssW = Math.max(1, Math.floor(rect.width || canvas.clientWidth || canvas.width));
+    const cssH = Math.max(1, Math.floor(rect.height || canvas.clientHeight || cssHeight || canvas.height));
+    const nextW = Math.floor(cssW * dpr);
+    const nextH = Math.floor(cssH * dpr);
+    if(canvas.width !== nextW || canvas.height !== nextH){
+        canvas.width = nextW;
+        canvas.height = nextH;
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return {ctx, W: cssW, H: cssH};
+}
+
 function drawScale(){
     if(activeCat!=='length') return;
     const canvas = document.getElementById('scale-canvas');
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    ctx.fillStyle='#050810'; ctx.fillRect(0,0,W,H);
+    const sized = syncHiDpiCanvas(canvas, 80);
+    if(!sized) return;
+    const ctx = sized.ctx;
+    const W = sized.W, H = sized.H;
+    ctx.clearRect(0,0,W,H);
+    const bg = ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0,'#0b1326');
+    bg.addColorStop(1,'#081120');
+    ctx.fillStyle=bg;
+    ctx.fillRect(0,0,W,H);
 
     const units = unitsForCat('length');
     const minLog=-35, maxLog=17, range=maxLog-minLog;
     units.forEach(u=>{
         const log = Math.log10(u.factor);
         const x = ((log-minLog)/range)*(W-40)+20;
-        ctx.fillStyle='#a78bfa44';
-        ctx.fillRect(x-1,14,2,H-28);
+        ctx.fillStyle='rgba(167,139,250,0.32)';
+        ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
         ctx.fillStyle='#a78bfa';
         ctx.font='9px monospace';
         ctx.textAlign='center';
@@ -850,8 +883,8 @@ function drawScale(){
         const meters = val*fromU.factor;
         const log = Math.log10(meters);
         const x = ((log-minLog)/range)*(W-40)+20;
-        ctx.fillStyle='rgba(124,58,237,0.2)'; ctx.fillRect(x-10,0,20,H);
-        ctx.fillStyle='#c084fc'; ctx.fillRect(x-1.5,14,3,H-28);
+        ctx.fillStyle='rgba(124,58,237,0.22)'; ctx.fillRect(x-10,0,20,H);
+        ctx.fillStyle='#c084fc'; ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
         ctx.beginPath(); ctx.moveTo(x,H-4); ctx.lineTo(x-6,H); ctx.lineTo(x+6,H); ctx.fill();
     }
 }
@@ -919,6 +952,7 @@ if(laneCopyJsonBtn) laneCopyJsonBtn.addEventListener('click', async ()=>{
     }catch(_){}
 });
 updateDataLane();
+window.addEventListener('resize', drawScale, {passive:true});
 
 /* ═══════════════════════════════════════════════════
    CALCULATOR (mathjs + KaTeX)
@@ -1420,6 +1454,7 @@ document.getElementById('geo-map').addEventListener('click',function(e){
 });
 
 // Geo position canvas
+let geoGranted=false, lastGeoLat, lastGeoLng;
 function drawGeoVis(lat,lng){
     const canvas=document.getElementById('q-geo');
     const ctx=canvas.getContext('2d');
@@ -1505,7 +1540,6 @@ document.getElementById('q-geo').addEventListener('click',function(e){
 });
 
 // Request geolocation with graceful fallback
-let geoGranted=false, lastGeoLat, lastGeoLng;
 function updateGeoDisplay(lat,lng,alt,acc,source){
     geoGranted=true;
     lastGeoLat=lat; lastGeoLng=lng;
