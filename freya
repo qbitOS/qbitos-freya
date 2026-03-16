@@ -9,10 +9,15 @@
 from __future__ import annotations
 
 import argparse
+import cmath
+import csv
 import importlib.util
 import json
+import math
 import os
+import random
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -295,6 +300,498 @@ def chat_conversion(query: str, backend: str, model: str | None = None, family: 
     return f"Error: {last_error}" if last_error else "Error: no backend attempted"
 
 
+def _gravity(altitude_m: float) -> float:
+    earth_radius_m = 6_371_000.0
+    g0 = 9.80665
+    return g0 * (earth_radius_m / (earth_radius_m + max(0.0, altitude_m))) ** 2
+
+
+def _air_density(altitude_m: float) -> float:
+    # Simple exponential model, good enough for fast onboard estimates.
+    return 1.225 * math.exp(-max(0.0, altitude_m) / 8500.0)
+
+
+def _to_float(value: object, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _phase_for_time(
+    t_sec: float,
+    maxq_start_sec: float,
+    maxq_end_sec: float,
+    meco_sec: float | None,
+    seco_sec: float | None,
+) -> str:
+    if t_sec < 0:
+        return "PRELAUNCH"
+    if meco_sec is not None and t_sec >= meco_sec:
+        if seco_sec is not None and t_sec >= seco_sec:
+            return "SECO_ORBIT_INSERT"
+        return "COAST_POST_MECO"
+    if maxq_start_sec <= t_sec <= maxq_end_sec:
+        return "MAXQ_BUCKET"
+    return "ASCENT_POWERED"
+
+
+def _event_for_time(
+    t_sec: float,
+    step_sec: float,
+    meco_sec: float | None,
+    seco_sec: float | None,
+) -> str | None:
+    eps = max(0.001, step_sec / 2.0)
+    if abs(t_sec - 0.0) <= eps:
+        return "LIFTOFF"
+    if meco_sec is not None and abs(t_sec - meco_sec) <= eps:
+        return "MECO"
+    if seco_sec is not None and abs(t_sec - seco_sec) <= eps:
+        return "SECO"
+    return None
+
+
+def _load_telemetry_input(path: str, input_format: str) -> list[dict]:
+    fmt = input_format.lower()
+    if fmt == "auto":
+        suffix = Path(path).suffix.lower()
+        if suffix in {".csv"}:
+            fmt = "csv"
+        elif suffix in {".json"}:
+            fmt = "json"
+        elif suffix in {".jsonl", ".ndjson"}:
+            fmt = "jsonl"
+        else:
+            fmt = "jsonl"
+
+    rows: list[dict] = []
+    if fmt == "csv":
+        with open(path, encoding="utf-8", newline="") as fp:
+            for row in csv.DictReader(fp):
+                rows.append(dict(row))
+    elif fmt == "json":
+        with open(path, encoding="utf-8") as fp:
+            data = json.load(fp)
+        if isinstance(data, list):
+            rows = [r for r in data if isinstance(r, dict)]
+        elif isinstance(data, dict) and isinstance(data.get("rows"), list):
+            rows = [r for r in data["rows"] if isinstance(r, dict)]
+        else:
+            raise ValueError("json input must be a list[object] or object with rows[]")
+    elif fmt == "jsonl":
+        with open(path, encoding="utf-8") as fp:
+            for raw in fp:
+                line = raw.strip()
+                if not line:
+                    continue
+                obj = json.loads(line)
+                if isinstance(obj, dict):
+                    rows.append(obj)
+    else:
+        raise ValueError(f"unsupported input format '{fmt}'")
+
+    if not rows:
+        raise ValueError("telemetry ingest produced zero rows")
+    return rows
+
+
+def _annotate_telemetry_rows(
+    rows: list[dict],
+    step_sec: float,
+    maxq_start_sec: float,
+    maxq_end_sec: float,
+    meco_sec: float | None,
+    seco_sec: float | None,
+) -> tuple[list[dict], dict]:
+    normalized: list[dict] = []
+    max_q_pa = -1.0
+    max_q_t = 0.0
+    max_accel_m_s2 = 0.0
+    g0 = 9.80665
+
+    for raw in rows:
+        t_sec = _to_float(raw.get("tSec"), _to_float(raw.get("timeSec"), 0.0))
+        alt_m = _to_float(raw.get("altitudeM"), _to_float(raw.get("altitude"), 0.0))
+        vel_m_s = _to_float(raw.get("velocityMs"), _to_float(raw.get("velocity"), 0.0))
+        mass_kg = _to_float(raw.get("massKg"), 0.0)
+        fuel_kg = _to_float(raw.get("fuelKg"), 0.0)
+        accel_m_s2 = _to_float(raw.get("accelMs2"), _to_float(raw.get("accel"), 0.0))
+        thrust_n = _to_float(raw.get("thrustN"), 0.0)
+
+        q_pa = _to_float(raw.get("dynamicPressurePa"), -1.0)
+        if q_pa < 0:
+            q_pa = 0.5 * _air_density(alt_m) * vel_m_s * vel_m_s
+        mach = _to_float(raw.get("machApprox"), -1.0)
+        if mach < 0:
+            mach = vel_m_s / 340.0
+        twr = _to_float(raw.get("twr"), -1.0)
+        if twr < 0:
+            twr = thrust_n / (mass_kg * _gravity(alt_m)) if mass_kg > 0 and thrust_n > 0 else 0.0
+        thermal = _to_float(raw.get("thermalLoadProxy"), -1.0)
+        if thermal < 0:
+            thermal = q_pa * max(0.0, mach)
+
+        phase = _phase_for_time(t_sec, maxq_start_sec, maxq_end_sec, meco_sec, seco_sec)
+        event = _event_for_time(t_sec, step_sec, meco_sec, seco_sec)
+
+        row = {
+            "tSec": round(t_sec, 3),
+            "altitudeM": alt_m,
+            "velocityMs": vel_m_s,
+            "massKg": mass_kg,
+            "fuelKg": fuel_kg,
+            "accelMs2": accel_m_s2,
+            "dynamicPressurePa": q_pa,
+            "machApprox": mach,
+            "twr": twr,
+            "thermalLoadProxy": thermal,
+            "phase": phase,
+        }
+        if event:
+            row["event"] = event
+        normalized.append(row)
+
+        if q_pa > max_q_pa:
+            max_q_pa = q_pa
+            max_q_t = t_sec
+        if abs(accel_m_s2) > max_accel_m_s2:
+            max_accel_m_s2 = abs(accel_m_s2)
+
+    normalized.sort(key=lambda r: _to_float(r.get("tSec"), 0.0))
+    final = normalized[-1]
+    summary = {
+        "durationSec": _to_float(final.get("tSec"), 0.0),
+        "stepSec": step_sec,
+        "maxQPa": max_q_pa if max_q_pa >= 0 else 0.0,
+        "maxQkPa": (max_q_pa / 1000.0) if max_q_pa >= 0 else 0.0,
+        "maxQTimeSec": max_q_t,
+        "maxAccelMs2": max_accel_m_s2,
+        "maxAccelG": max_accel_m_s2 / g0,
+        "phaseConfig": {
+            "maxqStartSec": maxq_start_sec,
+            "maxqEndSec": maxq_end_sec,
+            "mecoSec": meco_sec,
+            "secoSec": seco_sec,
+        },
+        "controlEnvelope": "DAC/Prefix/Steno/Iron-Line/Preflight/search-history controls",
+    }
+    return normalized, summary
+
+
+def _validate_telemetry(
+    rows: list[dict],
+    summary: dict,
+    max_q_kpa: float,
+    max_accel_g: float,
+    min_twr: float,
+    max_thermal: float,
+) -> dict:
+    violations: list[dict] = []
+    for row in rows:
+        t_sec = _to_float(row.get("tSec"), 0.0)
+        q_kpa = _to_float(row.get("dynamicPressurePa"), 0.0) / 1000.0
+        accel_g = abs(_to_float(row.get("accelMs2"), 0.0)) / 9.80665
+        twr = _to_float(row.get("twr"), 0.0)
+        thermal = _to_float(row.get("thermalLoadProxy"), 0.0)
+        phase = str(row.get("phase", "UNKNOWN"))
+
+        if q_kpa > max_q_kpa:
+            violations.append({"tSec": t_sec, "metric": "maxQkPa", "value": q_kpa, "limit": max_q_kpa, "phase": phase})
+        if accel_g > max_accel_g:
+            violations.append({"tSec": t_sec, "metric": "maxAccelG", "value": accel_g, "limit": max_accel_g, "phase": phase})
+        if phase in {"ASCENT_POWERED", "MAXQ_BUCKET"} and twr < min_twr:
+            violations.append({"tSec": t_sec, "metric": "minTWR", "value": twr, "limit": min_twr, "phase": phase})
+        if thermal > max_thermal:
+            violations.append(
+                {"tSec": t_sec, "metric": "maxThermalProxy", "value": thermal, "limit": max_thermal, "phase": phase}
+            )
+
+    status = "PASS" if not violations else "FAIL"
+    return {
+        "status": status,
+        "thresholds": {
+            "maxQkPa": max_q_kpa,
+            "maxAccelG": max_accel_g,
+            "minTwrPowered": min_twr,
+            "maxThermalProxy": max_thermal,
+        },
+        "summary": summary,
+        "violationCount": len(violations),
+        "violations": violations[:50],
+    }
+
+
+def _rows_to_time_map(rows: list[dict]) -> dict[float, dict]:
+    out: dict[float, dict] = {}
+    for row in rows:
+        t = round(_to_float(row.get("tSec"), 0.0), 3)
+        out[t] = row
+    return out
+
+
+def _compare_telemetry(actual_rows: list[dict], target_rows: list[dict], actual_summary: dict, target_summary: dict) -> dict:
+    a_map = _rows_to_time_map(actual_rows)
+    t_map = _rows_to_time_map(target_rows)
+    common_t = sorted(set(a_map.keys()) & set(t_map.keys()))
+    if not common_t:
+        raise ValueError("no overlapping tSec values between actual and target telemetry")
+
+    sq_alt = 0.0
+    sq_vel = 0.0
+    max_abs_alt = 0.0
+    max_abs_vel = 0.0
+    drift_samples: list[dict] = []
+
+    for t_sec in common_t:
+        a = a_map[t_sec]
+        b = t_map[t_sec]
+        d_alt = _to_float(a.get("altitudeM")) - _to_float(b.get("altitudeM"))
+        d_vel = _to_float(a.get("velocityMs")) - _to_float(b.get("velocityMs"))
+        sq_alt += d_alt * d_alt
+        sq_vel += d_vel * d_vel
+        max_abs_alt = max(max_abs_alt, abs(d_alt))
+        max_abs_vel = max(max_abs_vel, abs(d_vel))
+        if len(drift_samples) < 8:
+            drift_samples.append(
+                {
+                    "tSec": t_sec,
+                    "deltaAltitudeM": d_alt,
+                    "deltaVelocityMs": d_vel,
+                }
+            )
+
+    n = float(len(common_t))
+    rmse_alt = math.sqrt(sq_alt / n)
+    rmse_vel = math.sqrt(sq_vel / n)
+
+    a_max_q_kpa = _to_float(actual_summary.get("maxQkPa"), 0.0)
+    t_max_q_kpa = _to_float(target_summary.get("maxQkPa"), 0.0)
+
+    return {
+        "samplesCompared": int(n),
+        "timeRangeSec": {"start": common_t[0], "end": common_t[-1]},
+        "rmseAltitudeM": rmse_alt,
+        "rmseVelocityMs": rmse_vel,
+        "maxAbsAltitudeDriftM": max_abs_alt,
+        "maxAbsVelocityDriftMs": max_abs_vel,
+        "maxQDeltaKPa": a_max_q_kpa - t_max_q_kpa,
+        "actualMaxQkPa": a_max_q_kpa,
+        "targetMaxQkPa": t_max_q_kpa,
+        "driftSamples": drift_samples,
+    }
+
+
+def _simulate_telemetry(
+    duration_s: float,
+    dt_s: float,
+    dry_mass_kg: float,
+    fuel_mass_kg: float,
+    thrust_n: float,
+    isp_s: float,
+    drag_cd: float,
+    area_m2: float,
+    throttle: float,
+    live: bool,
+) -> tuple[list[dict], dict]:
+    t = 0.0
+    altitude_m = 0.0
+    velocity_m_s = 0.0
+    fuel_kg = max(0.0, fuel_mass_kg)
+
+    rows: list[dict] = []
+    max_q_pa = 0.0
+    max_accel_m_s2 = 0.0
+    g0 = 9.80665
+    last_mass_kg = dry_mass_kg + fuel_kg
+
+    while t <= duration_s + 1e-9:
+        mass_kg = dry_mass_kg + fuel_kg
+        mdot_kg_s = (thrust_n / (isp_s * g0)) if isp_s > 0 else 0.0
+        consumed_kg = min(fuel_kg, mdot_kg_s * dt_s * throttle)
+        thrust_live_n = thrust_n * throttle if fuel_kg > 0 else 0.0
+        fuel_kg -= consumed_kg
+
+        rho = _air_density(altitude_m)
+        drag_n = 0.5 * rho * drag_cd * area_m2 * velocity_m_s * abs(velocity_m_s)
+        gravity_n = mass_kg * _gravity(altitude_m)
+        net_n = thrust_live_n - gravity_n - drag_n
+        accel_m_s2 = net_n / mass_kg if mass_kg > 0 else 0.0
+        velocity_m_s = velocity_m_s + accel_m_s2 * dt_s
+        altitude_m = max(0.0, altitude_m + velocity_m_s * dt_s)
+        q_pa = 0.5 * rho * velocity_m_s * velocity_m_s
+        mach = velocity_m_s / 340.0
+        twr = (thrust_live_n / gravity_n) if gravity_n > 0 else 0.0
+
+        if q_pa > max_q_pa:
+            max_q_pa = q_pa
+        if abs(accel_m_s2) > max_accel_m_s2:
+            max_accel_m_s2 = abs(accel_m_s2)
+        last_mass_kg = mass_kg
+
+        rows.append(
+            {
+                "tSec": round(t, 3),
+                "altitudeM": altitude_m,
+                "velocityMs": velocity_m_s,
+                "massKg": mass_kg,
+                "fuelKg": fuel_kg,
+                "accelMs2": accel_m_s2,
+                "dynamicPressurePa": q_pa,
+                "machApprox": mach,
+                "twr": twr,
+                "thermalLoadProxy": q_pa * max(0.0, mach),
+            }
+        )
+        if live:
+            time.sleep(max(0.0, dt_s))
+        t += dt_s
+
+    # Tsiolkovsky vacuum estimate with consumed mass.
+    initial_mass = dry_mass_kg + fuel_mass_kg
+    final_mass = max(dry_mass_kg, last_mass_kg)
+    dv_vac_m_s = isp_s * g0 * math.log(initial_mass / final_mass) if final_mass > 0 and initial_mass > final_mass else 0.0
+    summary = {
+        "durationSec": duration_s,
+        "stepSec": dt_s,
+        "maxQPa": max_q_pa,
+        "maxQkPa": max_q_pa / 1000.0,
+        "maxAccelMs2": max_accel_m_s2,
+        "maxAccelG": max_accel_m_s2 / g0,
+        "deltaVVacuumMs": dv_vac_m_s,
+        "controlEnvelope": "DAC/Prefix/Steno/Iron-Line/Preflight/search-history controls",
+    }
+    return rows, summary
+
+
+def _apply_single_qubit_gate(state: list[complex], qubits: int, qubit: int, gate: list[list[complex]]) -> list[complex]:
+    out = state[:]
+    step = 1 << qubit
+    span = step << 1
+    size = 1 << qubits
+    for base in range(0, size, span):
+        for i in range(step):
+            i0 = base + i
+            i1 = i0 + step
+            a0 = state[i0]
+            a1 = state[i1]
+            out[i0] = gate[0][0] * a0 + gate[0][1] * a1
+            out[i1] = gate[1][0] * a0 + gate[1][1] * a1
+    return out
+
+
+def _apply_cx(state: list[complex], qubits: int, control: int, target: int) -> list[complex]:
+    if control == target:
+        raise ValueError("cx requires different control and target qubits")
+    size = 1 << qubits
+    out = state[:]
+    control_mask = 1 << control
+    target_mask = 1 << target
+    for i in range(size):
+        if i & control_mask and not (i & target_mask):
+            j = i | target_mask
+            out[i], out[j] = out[j], out[i]
+    return out
+
+
+def _run_quantum_program(qubits: int, program: str, shots: int) -> dict:
+    if qubits < 1 or qubits > 10:
+        raise ValueError("qubits must be between 1 and 10")
+    state: list[complex] = [0j] * (1 << qubits)
+    state[0] = 1 + 0j
+
+    ops = [chunk.strip() for chunk in program.replace("\n", ";").split(";") if chunk.strip()]
+    for op in ops:
+        parts = op.split()
+        gate = parts[0].lower()
+        if gate in {"h", "x", "y", "z", "s", "t"}:
+            if len(parts) != 2:
+                raise ValueError(f"{gate} expects 1 qubit argument")
+            q = int(parts[1])
+            if not (0 <= q < qubits):
+                raise ValueError(f"qubit index out of range: {q}")
+            if gate == "h":
+                inv = 1 / math.sqrt(2)
+                g = [[inv, inv], [inv, -inv]]
+            elif gate == "x":
+                g = [[0, 1], [1, 0]]
+            elif gate == "y":
+                g = [[0, -1j], [1j, 0]]
+            elif gate == "z":
+                g = [[1, 0], [0, -1]]
+            elif gate == "s":
+                g = [[1, 0], [0, 1j]]
+            else:  # t
+                g = [[1, 0], [0, cmath.exp(1j * math.pi / 4)]]
+            state = _apply_single_qubit_gate(state, qubits, q, g)
+        elif gate in {"rx", "ry", "rz"}:
+            if len(parts) != 3:
+                raise ValueError(f"{gate} expects angle_rad and qubit arguments")
+            theta = float(parts[1])
+            q = int(parts[2])
+            if not (0 <= q < qubits):
+                raise ValueError(f"qubit index out of range: {q}")
+            c = math.cos(theta / 2.0)
+            s = math.sin(theta / 2.0)
+            if gate == "rx":
+                g = [[c, -1j * s], [-1j * s, c]]
+            elif gate == "ry":
+                g = [[c, -s], [s, c]]
+            else:
+                g = [[cmath.exp(-1j * theta / 2.0), 0], [0, cmath.exp(1j * theta / 2.0)]]
+            state = _apply_single_qubit_gate(state, qubits, q, g)
+        elif gate == "cx":
+            if len(parts) != 3:
+                raise ValueError("cx expects control target")
+            control = int(parts[1])
+            target = int(parts[2])
+            if not (0 <= control < qubits and 0 <= target < qubits):
+                raise ValueError("cx qubit index out of range")
+            state = _apply_cx(state, qubits, control, target)
+        elif gate == "measure":
+            continue
+        else:
+            raise ValueError(f"unsupported gate '{gate}'")
+
+    probs = [abs(a) ** 2 for a in state]
+    total = sum(probs)
+    if total <= 0:
+        raise ValueError("invalid quantum state: total probability is zero")
+    probs = [p / total for p in probs]
+
+    counts: dict[str, int] = {}
+    if shots > 0:
+        samples = random.choices(range(len(probs)), weights=probs, k=shots)
+        for idx in samples:
+            bitstr = format(idx, f"0{qubits}b")
+            counts[bitstr] = counts.get(bitstr, 0) + 1
+
+    amplitudes = {}
+    for i, amp in enumerate(state):
+        if abs(amp) > 1e-9:
+            amplitudes[format(i, f"0{qubits}b")] = {"re": amp.real, "im": amp.imag}
+
+    z_expectation = {}
+    for q in range(qubits):
+        exp_z = 0.0
+        mask = 1 << q
+        for i, p in enumerate(probs):
+            exp_z += p if (i & mask) == 0 else -p
+        z_expectation[f"q{q}"] = exp_z
+
+    return {
+        "qubits": qubits,
+        "program": ops,
+        "amplitudes": amplitudes,
+        "probabilities": {format(i, f"0{qubits}b"): probs[i] for i in range(len(probs)) if probs[i] > 1e-9},
+        "shots": shots,
+        "counts": counts,
+        "expectationZ": z_expectation,
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Freya CLI for math, conversions, and multi-backend chat")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -341,6 +838,65 @@ def main() -> int:
         help="Backend inventory scope (default: all)",
     )
 
+    telemetry = sub.add_parser("telemetry", help="Live launch-style telemetry calculations")
+    telemetry.add_argument("--duration-sec", type=float, default=60.0)
+    telemetry.add_argument("--step-sec", type=float, default=1.0)
+    telemetry.add_argument("--dry-mass-kg", type=float, default=None)
+    telemetry.add_argument("--fuel-mass-kg", type=float, default=None)
+    telemetry.add_argument("--thrust-n", type=float, default=None)
+    telemetry.add_argument("--isp-s", type=float, default=None)
+    telemetry.add_argument("--cd", type=float, default=0.5, help="Drag coefficient")
+    telemetry.add_argument("--area-m2", type=float, default=10.0, help="Cross-section area")
+    telemetry.add_argument("--throttle", type=float, default=1.0)
+    telemetry.add_argument("--input", default=None, help="Optional telemetry file ingest (csv/json/jsonl)")
+    telemetry.add_argument("--input-format", choices=["auto", "csv", "json", "jsonl"], default="auto")
+    telemetry.add_argument("--phase-maxq-start-sec", type=float, default=35.0)
+    telemetry.add_argument("--phase-maxq-end-sec", type=float, default=65.0)
+    telemetry.add_argument("--phase-meco-sec", type=float, default=None)
+    telemetry.add_argument("--phase-seco-sec", type=float, default=None)
+    telemetry.add_argument(
+        "--replay-speed",
+        type=float,
+        default=1.0,
+        help="In ingest mode with --live, play timestamps at this multiplier.",
+    )
+    telemetry.add_argument("--jsonl", action="store_true", help="Emit one JSON row per step")
+    telemetry.add_argument("--live", action="store_true", help="Sleep each step for real-time streaming")
+
+    telemetry_validate = sub.add_parser("telemetry-validate", help="Validate telemetry against safety gates")
+    telemetry_validate.add_argument("--input", required=True, help="Telemetry file path (csv/json/jsonl)")
+    telemetry_validate.add_argument("--input-format", choices=["auto", "csv", "json", "jsonl"], default="auto")
+    telemetry_validate.add_argument("--step-sec", type=float, default=1.0)
+    telemetry_validate.add_argument("--phase-maxq-start-sec", type=float, default=35.0)
+    telemetry_validate.add_argument("--phase-maxq-end-sec", type=float, default=65.0)
+    telemetry_validate.add_argument("--phase-meco-sec", type=float, default=None)
+    telemetry_validate.add_argument("--phase-seco-sec", type=float, default=None)
+    telemetry_validate.add_argument("--max-q-kpa", type=float, default=45.0)
+    telemetry_validate.add_argument("--max-accel-g", type=float, default=6.0)
+    telemetry_validate.add_argument("--min-twr-powered", type=float, default=1.1)
+    telemetry_validate.add_argument("--max-thermal-proxy", type=float, default=100000.0)
+
+    telemetry_compare = sub.add_parser("telemetry-compare", help="Compare actual telemetry to target envelope")
+    telemetry_compare.add_argument("--actual", required=True, help="Actual telemetry file path")
+    telemetry_compare.add_argument("--target", required=True, help="Target telemetry file path")
+    telemetry_compare.add_argument("--format", choices=["auto", "csv", "json", "jsonl"], default="auto")
+    telemetry_compare.add_argument("--step-sec", type=float, default=1.0)
+    telemetry_compare.add_argument("--phase-maxq-start-sec", type=float, default=35.0)
+    telemetry_compare.add_argument("--phase-maxq-end-sec", type=float, default=65.0)
+    telemetry_compare.add_argument("--phase-meco-sec", type=float, default=None)
+    telemetry_compare.add_argument("--phase-seco-sec", type=float, default=None)
+
+    quantum = sub.add_parser("quantum", help="Quantum math + gate simulation")
+    quantum_sub = quantum.add_subparsers(dest="quantum_cmd", required=True)
+    q_run = quantum_sub.add_parser("run", help="Run a compact gate program")
+    q_run.add_argument("--qubits", type=int, required=True, help="Number of qubits (1-10)")
+    q_run.add_argument(
+        "--program",
+        required=True,
+        help='Gate program, e.g. "h 0; cx 0 1; measure" (supports h/x/y/z/s/t/rx/ry/rz/cx)',
+    )
+    q_run.add_argument("--shots", type=int, default=1024)
+
     args = ap.parse_args()
 
     if args.cmd == "math":
@@ -363,6 +919,142 @@ def main() -> int:
     if args.cmd == "models":
         print(json.dumps(models_inventory(args.backend), indent=2))
         return 0
+    if args.cmd == "telemetry":
+        try:
+            if args.input:
+                rows = _load_telemetry_input(args.input, args.input_format)
+                rows, summary = _annotate_telemetry_rows(
+                    rows=rows,
+                    step_sec=max(0.001, args.step_sec),
+                    maxq_start_sec=args.phase_maxq_start_sec,
+                    maxq_end_sec=args.phase_maxq_end_sec,
+                    meco_sec=args.phase_meco_sec,
+                    seco_sec=args.phase_seco_sec,
+                )
+            else:
+                required = {
+                    "--dry-mass-kg": args.dry_mass_kg,
+                    "--fuel-mass-kg": args.fuel_mass_kg,
+                    "--thrust-n": args.thrust_n,
+                    "--isp-s": args.isp_s,
+                }
+                missing = [flag for flag, value in required.items() if value is None]
+                if missing:
+                    raise ValueError(f"missing required args for simulation: {', '.join(missing)}")
+                rows, sim_summary = _simulate_telemetry(
+                    duration_s=args.duration_sec,
+                    dt_s=args.step_sec,
+                    dry_mass_kg=float(args.dry_mass_kg),
+                    fuel_mass_kg=float(args.fuel_mass_kg),
+                    thrust_n=float(args.thrust_n),
+                    isp_s=float(args.isp_s),
+                    drag_cd=args.cd,
+                    area_m2=args.area_m2,
+                    throttle=max(0.0, min(1.0, args.throttle)),
+                    live=False,
+                )
+                rows, summary = _annotate_telemetry_rows(
+                    rows=rows,
+                    step_sec=max(0.001, args.step_sec),
+                    maxq_start_sec=args.phase_maxq_start_sec,
+                    maxq_end_sec=args.phase_maxq_end_sec,
+                    meco_sec=args.phase_meco_sec,
+                    seco_sec=args.phase_seco_sec,
+                )
+                summary["deltaVVacuumMs"] = sim_summary.get("deltaVVacuumMs", 0.0)
+
+            if args.jsonl:
+                replay = max(0.001, args.replay_speed)
+                prev_t = None
+                for row in rows:
+                    print(json.dumps(row, ensure_ascii=True))
+                    if args.live:
+                        t_now = _to_float(row.get("tSec"), 0.0)
+                        if prev_t is None:
+                            prev_t = t_now
+                        else:
+                            dt = max(0.0, t_now - prev_t)
+                            prev_t = t_now
+                            time.sleep(dt / replay)
+                print(json.dumps({"summary": summary}, ensure_ascii=True))
+            else:
+                print(json.dumps({"summary": summary, "final": rows[-1], "samples": rows[:3]}, indent=2))
+            return 0
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "telemetry-validate":
+        try:
+            raw_rows = _load_telemetry_input(args.input, args.input_format)
+            rows, summary = _annotate_telemetry_rows(
+                rows=raw_rows,
+                step_sec=max(0.001, args.step_sec),
+                maxq_start_sec=args.phase_maxq_start_sec,
+                maxq_end_sec=args.phase_maxq_end_sec,
+                meco_sec=args.phase_meco_sec,
+                seco_sec=args.phase_seco_sec,
+            )
+            report = _validate_telemetry(
+                rows=rows,
+                summary=summary,
+                max_q_kpa=args.max_q_kpa,
+                max_accel_g=args.max_accel_g,
+                min_twr=args.min_twr_powered,
+                max_thermal=args.max_thermal_proxy,
+            )
+            print(json.dumps(report, indent=2))
+            return 0 if report["status"] == "PASS" else 2
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "telemetry-compare":
+        try:
+            raw_actual = _load_telemetry_input(args.actual, args.format)
+            raw_target = _load_telemetry_input(args.target, args.format)
+            actual_rows, actual_summary = _annotate_telemetry_rows(
+                rows=raw_actual,
+                step_sec=max(0.001, args.step_sec),
+                maxq_start_sec=args.phase_maxq_start_sec,
+                maxq_end_sec=args.phase_maxq_end_sec,
+                meco_sec=args.phase_meco_sec,
+                seco_sec=args.phase_seco_sec,
+            )
+            target_rows, target_summary = _annotate_telemetry_rows(
+                rows=raw_target,
+                step_sec=max(0.001, args.step_sec),
+                maxq_start_sec=args.phase_maxq_start_sec,
+                maxq_end_sec=args.phase_maxq_end_sec,
+                meco_sec=args.phase_meco_sec,
+                seco_sec=args.phase_seco_sec,
+            )
+            report = _compare_telemetry(
+                actual_rows=actual_rows,
+                target_rows=target_rows,
+                actual_summary=actual_summary,
+                target_summary=target_summary,
+            )
+            print(json.dumps(report, indent=2))
+            return 0
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "quantum":
+        if args.quantum_cmd == "run":
+            try:
+                print(
+                    json.dumps(
+                        _run_quantum_program(
+                            qubits=args.qubits,
+                            program=args.program,
+                            shots=max(0, args.shots),
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            except Exception as exc:  # noqa: BLE001
+                print(f"error: {exc}", file=sys.stderr)
+                return 1
 
     return 1
 

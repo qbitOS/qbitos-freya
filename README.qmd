@@ -44,6 +44,11 @@ uv run python tools/freya-math-cli.py expr "sin(pi/4)^2 + cos(pi/4)^2"
 uv run python tools/freya-hexcast-cli.py render path/to/ErikaFreya.png --width 90
 uv run python tools/freya-hexcast-cli.py pack ErikaFreya path/to/ErikaFreya.png
 uv run python tools/freya-hexcast-cli.py batch
+./freya telemetry --dry-mass-kg 120000 --fuel-mass-kg 300000 --thrust-n 7600000 --isp-s 300 --duration-sec 20 --step-sec 1 --jsonl
+./freya telemetry --input bench/telemetry-sample.jsonl --input-format jsonl --phase-meco-sec 160 --phase-seco-sec 510 --jsonl
+./freya telemetry-validate --input bench/telemetry-sample.jsonl --input-format jsonl --max-q-kpa 45 --max-accel-g 6 --min-twr-powered 1.1
+./freya telemetry-compare --actual bench/telemetry-run-a.jsonl --target bench/telemetry-run-b.jsonl --format jsonl
+./freya quantum run --qubits 2 --program "h 0; cx 0 1; measure" --shots 2048
 ```
 
 ## Mistral Vibe agent discovery
