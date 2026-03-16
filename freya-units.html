@@ -300,6 +300,36 @@
             color:#475569;
             margin-top:2px;
         }
+        .bracelet-grid{
+            display:grid;
+            grid-template-columns:minmax(88px,120px) 1fr;
+            gap:12px;
+            align-items:stretch;
+        }
+        .bracelet-wrap{
+            display:flex;
+            justify-content:center;
+            align-items:stretch;
+            min-height:420px;
+            padding:4px;
+        }
+        #bracelet-scale-canvas{
+            width:84px;
+            height:420px;
+            max-height:68vh;
+            background:transparent;
+            touch-action:none;
+            -ms-touch-action:none;
+            cursor:ns-resize;
+        }
+        .bracelet-readout{min-height:72px;}
+        .bracelet-checklist{
+            margin:8px 0 0 18px;
+            font-size:0.75rem;
+            line-height:1.55;
+            color:#0f172a;
+        }
+        .bracelet-checklist li{margin-bottom:4px;}
         canvas{display:block;width:100%;border-radius:var(--radius-sm);}
 
         /* Celestial chart */
@@ -363,6 +393,9 @@
             .calc-keys{grid-template-columns:repeat(4,1fr);}
             .mission-logo{font-size:2rem;}
             .app{padding:12px 14px 40px;}
+            .bracelet-grid{grid-template-columns:1fr;}
+            .bracelet-wrap{min-height:320px;}
+            #bracelet-scale-canvas{width:100%;height:320px;max-height:58vh;}
         }
     </style>
 </head>
@@ -388,6 +421,7 @@
             <button class="nav-tab" data-tab="codex">◎ Codex</button>
             <button class="nav-tab" data-tab="quantum">⚛ Quantum Nav</button>
             <button class="nav-tab" data-tab="dither">▓ Dither</button>
+            <button class="nav-tab" data-tab="bracelet">⌁ Bracelet</button>
         </nav>
         <div class="quick-prompt">
             <div class="quick-prompt-title">Freya Quick Prompt (convert / recipe / list / long math)</div>
@@ -703,6 +737,40 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
             </div>
         </div>
 
+        <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 6: BRACELET                         -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section" id="sec-bracelet">
+            <div class="card card-light">
+                <div class="card-title"><span class="icon">⌁</span> Bracelet Vertical Log Scale <span style="font-size:0.625rem;color:var(--text-muted);margin-left:auto;">v4.4 wearable</span></div>
+                <div class="bracelet-grid">
+                    <div class="canvas-wrap scale-wrap bracelet-wrap">
+                        <canvas id="bracelet-scale-canvas" width="84" height="420"></canvas>
+                    </div>
+                    <div>
+                        <div class="scale-readout bracelet-readout">
+                            <div class="scale-readout-main" id="bracelet-readout-main">Ready — touch/drag vertically like camera zoom.</div>
+                            <div class="scale-readout-meta" id="bracelet-readout-meta">OLED mode: vertical precision lock on nearest unit and decade.</div>
+                        </div>
+                        <div class="canvas-wrap" style="padding:10px;margin-top:10px;">
+                            <div style="font-size:0.6875rem;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px;">Freya Launch Fork + Wearable Integration Plan (pre-flight)</div>
+                            <ul class="bracelet-checklist" id="bracelet-preflight-checklist">
+                                <li>Vertical scale touch scrub passes on iOS Safari and Android Chrome.</li>
+                                <li>No-blur HiDPI render validated for DPR 1-3 and orientation changes.</li>
+                                <li>Readout parity: hover/drag/scroll/current all emit exact 10^x + nearest unit.</li>
+                                <li>Safety clamp active for 1e-24 to 1e120 with off-canvas indicator.</li>
+                                <li>Bench prompt + T5 noBLINK readiness linked before launch fork.</li>
+                            </ul>
+                            <div class="quick-row" style="margin-top:10px;">
+                                <a class="quick-btn" href="FREYA_LAUNCH_FORK_WEARABLE_INTEGRATION_PLAN.md" target="_blank" style="text-decoration:none;">Open Plan .md</a>
+                                <button class="quick-btn" id="bracelet-copy-preflight">Copy Pre-flight Checklist</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Footer -->
         <footer class="footer">
             FreyaUnits v4.4 &middot; <a href="https://uvmis.ugrad.ai/modellab/">Model Lab</a> &middot; <a href="https://uvmis.ugrad.ai/compliance/">Compliance</a> &middot; qbitOS / ugrad.ai
@@ -769,6 +837,9 @@ document.getElementById('nav-tabs').addEventListener('click', e=>{
     }
     if(tab.dataset.tab==='codex'&&typeof drawCodexChart==='function'){
         requestAnimationFrame(()=>{drawCodexChart();buildCodexPanels();});
+    }
+    if(tab.dataset.tab==='bracelet'&&typeof drawBraceletScale==='function'){
+        requestAnimationFrame(()=>{ drawBraceletScale(); });
     }
 });
 const qpInput = document.getElementById('quick-prompt-input');
@@ -1533,6 +1604,7 @@ function convert(){
         qDiv.innerHTML = `<div style="color:var(--text-muted);">Quantum properties available for Length category.</div>`;
     }
     drawScale();
+    if(typeof drawBraceletScale === 'function') drawBraceletScale();
 }
 
 function syncHiDpiCanvas(canvas, cssHeight){
@@ -1627,6 +1699,8 @@ function drawScale(){
 }
 const scaleReadoutMain = document.getElementById('scale-readout-main');
 const scaleReadoutMeta = document.getElementById('scale-readout-meta');
+const braceletReadoutMain = document.getElementById('bracelet-readout-main');
+const braceletReadoutMeta = document.getElementById('bracelet-readout-meta');
 function setScaleReadout(log10Value, mode){
     const units = unitsForCat('length');
     const meters = Math.pow(10, log10Value);
@@ -1646,6 +1720,217 @@ function setScaleReadout(log10Value, mode){
     }
     if(scaleReadoutMeta){
         scaleReadoutMeta.textContent = `${nearest.name} · nearest factor ${nearest.factor.toExponential(4)} m`;
+    }
+}
+function setBraceletReadout(log10Value, mode){
+    const units = unitsForCat('length');
+    const minLog = -35;
+    const maxLog = 17;
+    const clampedLog = Math.max(minLog, Math.min(maxLog, log10Value));
+    const meters = Math.pow(10, clampedLog);
+    let nearest = units[0];
+    let nearestDiff = Infinity;
+    units.forEach((u)=>{
+        const d = Math.abs(Math.log10(u.factor) - clampedLog);
+        if(d < nearestDiff){
+            nearest = u;
+            nearestDiff = d;
+        }
+    });
+    const inUnit = meters / nearest.factor;
+    const clamped = (log10Value !== clampedLog) ? ' · off-canvas clamped' : '';
+    if(braceletReadoutMain){
+        braceletReadoutMain.textContent = `${mode}: ${fmt(inUnit)} ${nearest.sym} (${fmt(meters)} m · 10^${clampedLog.toFixed(3)}${clamped})`;
+    }
+    if(braceletReadoutMeta){
+        braceletReadoutMeta.textContent = `${nearest.name} · nearest factor ${nearest.factor.toExponential(4)} m`;
+    }
+}
+function drawBraceletScale(){
+    const canvas = document.getElementById('bracelet-scale-canvas');
+    if(!canvas) return;
+    const targetHeight = Math.max(320, Math.min(540, Math.floor((window.innerHeight || 800) * 0.58)));
+    const sized = syncHiDpiCanvas(canvas, targetHeight);
+    if(!sized) return;
+    const ctx = sized.ctx;
+    const W = sized.W, H = sized.H;
+    ctx.clearRect(0,0,W,H);
+
+    const bg = ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0,'#f8fafc');
+    bg.addColorStop(1,'#eef2ff');
+    ctx.fillStyle=bg;
+    ctx.fillRect(0,0,W,H);
+
+    const units = unitsForCat('length');
+    const minLog=-35, maxLog=17, range=maxLog-minLog;
+    const yForLog = (log)=>{
+        const clamped = Math.max(minLog, Math.min(maxLog, log));
+        const t = (clamped - minLog) / range;
+        return Math.round((H - 16) - t * (H - 32));
+    };
+
+    for(let d=Math.ceil(minLog); d<=Math.floor(maxLog); d++){
+        const y = yForLog(d);
+        const hue = ((d + 36) * 17) % 360;
+        const isFive = d % 5 === 0;
+        ctx.strokeStyle = `hsla(${hue},78%,${isFive ? 50 : 64}%,${isFive ? 0.55 : 0.25})`;
+        ctx.lineWidth = isFive ? 1.5 : 1;
+        ctx.beginPath();
+        ctx.moveTo(6, y);
+        ctx.lineTo(W - 24, y);
+        ctx.stroke();
+        if(isFive){
+            ctx.fillStyle = '#334155';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(`10^${d}`, 8, y - 2);
+        }
+    }
+
+    units.forEach((u)=>{
+        const log = Math.log10(u.factor);
+        if(log < minLog || log > maxLog) return;
+        const y = yForLog(log);
+        const hue = ((log + 35) * 15) % 360;
+        ctx.strokeStyle = `hsla(${hue},85%,40%,0.9)`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(W - 22, y);
+        ctx.lineTo(W - 8, y);
+        ctx.stroke();
+    });
+
+    const fromU = units[fromSel.value] || units[0];
+    const currentVal = parseFloat(valInput.value) || 1;
+    const currentMeters = Math.max(1e-35, currentVal * fromU.factor);
+    const currentLog = Math.log10(currentMeters);
+    const clampedLog = Math.max(minLog, Math.min(maxLog, currentLog));
+    const y = yForLog(currentLog);
+    const outOfRange = currentLog < minLog || currentLog > maxLog;
+
+    ctx.fillStyle = '#0ea5e9';
+    ctx.fillRect(W - 3, Math.round(y) - 1, 3, 2);
+    ctx.beginPath();
+    ctx.moveTo(W - 2, y);
+    ctx.lineTo(W - 12, y - 7);
+    ctx.lineTo(W - 12, y + 7);
+    ctx.closePath();
+    ctx.fill();
+    if(outOfRange){
+        ctx.fillStyle = '#0f172a';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(currentLog > maxLog ? 'out ↑' : 'out ↓', 8, currentLog > maxLog ? 12 : H - 8);
+    }
+    setBraceletReadout(clampedLog, 'Current');
+}
+function setupBraceletInteractions(){
+    const canvas = document.getElementById('bracelet-scale-canvas');
+    if(!canvas || canvas.dataset.scaleBound==='1') return;
+    canvas.dataset.scaleBound='1';
+    const minLog=-35, maxLog=17, range=maxLog-minLog;
+    let pointerDown = false;
+    let activePointerId = null;
+    let startY = 0;
+    let startVal = 1;
+
+    const clampVal = (v)=> Math.max(1e-24, Math.min(1e120, v));
+    const yToLog = (clientY)=>{
+        const rect = canvas.getBoundingClientRect();
+        const localY = Math.max(16, Math.min(rect.height - 16, clientY - rect.top));
+        const t = 1 - ((localY - 16) / Math.max(1, (rect.height - 32)));
+        return minLog + (t * range);
+    };
+    const setValueFromLog = (log, mode)=>{
+        const units = unitsForCat('length');
+        const fromU = units[fromSel.value] || units[0];
+        const clampedLog = Math.max(minLog, Math.min(maxLog, log));
+        const meters = Math.pow(10, clampedLog);
+        const next = clampVal(meters / Math.max(1e-120, fromU.factor));
+        valInput.value = Number(next.toPrecision(10)).toString();
+        convert();
+        setBraceletReadout(clampedLog, mode);
+    };
+    const setFromDrag = (clientY, mode)=>{
+        // iPhone camera-like zoom wheel: drag up zooms in exponentially.
+        const delta = startY - clientY;
+        const gain = Math.pow(1.0115, delta);
+        const next = clampVal(startVal * gain);
+        valInput.value = Number(next.toPrecision(10)).toString();
+        convert();
+        const units = unitsForCat('length');
+        const fromU = units[fromSel.value] || units[0];
+        const meters = Math.max(1e-35, next * fromU.factor);
+        setBraceletReadout(Math.log10(meters), mode);
+    };
+
+    canvas.addEventListener('mousemove', (e)=> setBraceletReadout(yToLog(e.clientY), pointerDown ? 'Zoom Drag' : 'Hover'));
+    canvas.addEventListener('pointerdown', (e)=>{
+        pointerDown = true;
+        activePointerId = e.pointerId;
+        startY = e.clientY;
+        startVal = parseFloat(valInput.value) || 1;
+        try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+        setValueFromLog(yToLog(e.clientY), 'Touch');
+    });
+    canvas.addEventListener('pointermove', (e)=>{
+        if(!pointerDown || (activePointerId !== null && e.pointerId !== activePointerId)) return;
+        setFromDrag(e.clientY, 'Zoom Drag');
+    });
+    const endPointer = (e)=>{
+        if(activePointerId !== null && e.pointerId !== activePointerId) return;
+        pointerDown = false;
+        activePointerId = null;
+    };
+    canvas.addEventListener('pointerup', endPointer);
+    canvas.addEventListener('pointercancel', endPointer);
+
+    canvas.addEventListener('touchstart', (e)=>{
+        if(!e.touches || !e.touches[0]) return;
+        pointerDown = true;
+        startY = e.touches[0].clientY;
+        startVal = parseFloat(valInput.value) || 1;
+        setValueFromLog(yToLog(e.touches[0].clientY), 'Touch');
+    }, {passive:true});
+    canvas.addEventListener('touchmove', (e)=>{
+        if(!pointerDown || !e.touches || !e.touches[0]) return;
+        setFromDrag(e.touches[0].clientY, 'Zoom Drag');
+    }, {passive:true});
+    canvas.addEventListener('touchend', ()=>{ pointerDown = false; }, {passive:true});
+    canvas.addEventListener('touchcancel', ()=>{ pointerDown = false; }, {passive:true});
+
+    canvas.addEventListener('wheel', (e)=>{
+        e.preventDefault();
+        const k = e.deltaY < 0 ? 1.06 : 1/1.06;
+        const current = parseFloat(valInput.value) || 1;
+        const next = clampVal(current * k);
+        valInput.value = Number(next.toPrecision(10)).toString();
+        convert();
+        const units = unitsForCat('length');
+        const fromU = units[fromSel.value] || units[0];
+        const meters = Math.max(1e-35, next * fromU.factor);
+        setBraceletReadout(Math.log10(meters), 'Scroll');
+    }, {passive:false});
+
+    const redraw = ()=>{
+        drawBraceletScale();
+        const units = unitsForCat('length');
+        const fromU = units[fromSel.value] || units[0];
+        const val = parseFloat(valInput.value)||0;
+        const meters = Math.max(1e-35, val * fromU.factor);
+        setBraceletReadout(Math.log10(meters), 'Current');
+    };
+    if(window.visualViewport){
+        window.visualViewport.addEventListener('resize', redraw, {passive:true});
+    }
+    window.addEventListener('orientationchange', redraw, {passive:true});
+    if(typeof ResizeObserver !== 'undefined'){
+        const host = canvas.parentElement;
+        if(host){
+            const ro = new ResizeObserver(()=>{ redraw(); });
+            ro.observe(host);
+        }
     }
 }
 function setupScaleInteractions(){
@@ -1770,6 +2055,7 @@ document.getElementById('conv-swap').addEventListener('click',()=>{
 });
 populateSelects();
 setupScaleInteractions();
+setupBraceletInteractions();
 if(laneTbEl){ laneTbEl.addEventListener('input', updateDataLane); }
 if(laneCostEl){ laneCostEl.addEventListener('input', updateDataLane); }
 if(lanePctAEl){ lanePctAEl.addEventListener('input', updateDataLane); }
@@ -1809,6 +2095,20 @@ if(laneCopyJsonBtn) laneCopyJsonBtn.addEventListener('click', async ()=>{
 applyLaneProfile();
 updateDataLane();
 window.addEventListener('resize', drawScale, {passive:true});
+window.addEventListener('resize', drawBraceletScale, {passive:true});
+const braceletCopyPreflightBtn = document.getElementById('bracelet-copy-preflight');
+if(braceletCopyPreflightBtn){
+    braceletCopyPreflightBtn.addEventListener('click', async ()=>{
+        const src = document.getElementById('bracelet-preflight-checklist');
+        if(!src) return;
+        const text = Array.from(src.querySelectorAll('li')).map((li)=>`- ${li.textContent.trim()}`).join('\n');
+        try{
+            await navigator.clipboard.writeText(text);
+            braceletCopyPreflightBtn.textContent = 'Copied';
+            setTimeout(()=>{ braceletCopyPreflightBtn.textContent = 'Copy Pre-flight Checklist'; }, 1200);
+        }catch(_){}
+    });
+}
 
 /* ═══════════════════════════════════════════════════
    CALCULATOR (mathjs + KaTeX)
