@@ -53,6 +53,10 @@ uv run python tools/freya-hexcast-cli.py batch
 ./freya market convert --amount 0.25 --from BTC --to USD
 ./freya market quote --symbol AAPL --market stock
 ./freya market quote --symbol ETH --market crypto
+./freya chemistry periodic --query Si
+./freya chemistry bond --a Na --b Cl
+./freya geometry plot --expr "sin(x)" --x-min -6.28 --x-max 6.28 --steps 360
+./freya geometry shape --type sphere --a 5
 ./freya code qr --text "https://freya.qbitos.ai/menu" --size 320 --out bench/freya-hexcast-qr.png
 ./freya code lookup --code 9780140328721
 ./freya code codec --from ascii --to hex --text "freya"
@@ -104,6 +108,12 @@ nu scripts/pre.nu
 ./freya models --route-task code --family codellama
 ./freya agent memory-write --agent planner --key objective --value "ship readiness"
 ./freya agent memory-read --agent planner
+./freya enterprise mistral-route --task code
+./freya enterprise compliance-check --role admin --action enterprise.ops-report
+./freya enterprise audit-log --actor ci --role operator --action deploy --resource erika --status PASS --meta-json '{"release":"v1"}'
+./freya enterprise eval --prompt "Summarize release risk in 3 bullets" --backends "mistral,ugrad,lmstudio,ollama,huggingface"
+./freya enterprise eval-suite --suite-file enterprise/eval-suite.json
+./freya enterprise ops-report --window-hours 24
 ```
 
 ## Freya Codex Pull API (erika.qbitos.ai)
@@ -228,6 +238,14 @@ IPv6 AAAA go-live checklist:
 - Session memory: `.freya/sessions/*.json`
 - Agent collaboration memory: `.freya/agent-memory.json`
 - Local RAG index: `.freya/rag-index.json`
+
+## Enterprise Pack
+
+- Mistral route policy: `enterprise/mistral-enterprise-pack.json`
+- RBAC policy: `enterprise/rbac-policy.json`
+- Eval prompt suite: `enterprise/eval-suite.json`
+- Readiness dossier: `MISTRAL_ENTERPRISE_READINESS.md`
+- Kubernetes ops pack: `deploy/k8s/`
 
 ## Phase A-C Initial Chunk Coverage (1-5)
 

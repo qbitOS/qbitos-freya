@@ -1,0 +1,27 @@
+{
+  "note": "beyondBINARY quantum-prefixed | uvspeed | {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1}",
+  "version": "1.0.0",
+  "roles": {
+    "admin": [
+      "*"
+    ],
+    "operator": [
+      "models.route",
+      "rules.validate",
+      "rules.activate",
+      "artifact.add",
+      "artifact.list",
+      "enterprise.eval",
+      "enterprise.ops-report"
+    ],
+    "auditor": [
+      "artifact.list",
+      "enterprise.compliance-check",
+      "enterprise.ops-report"
+    ],
+    "viewer": [
+      "models.inventory",
+      "artifact.list"
+    ]
+  }
+}

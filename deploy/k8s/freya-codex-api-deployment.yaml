@@ -1,0 +1,52 @@
+# beyondBINARY quantum-prefixed | uvspeed | {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: freya-codex-api
+  labels:
+    app: freya-codex-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: freya-codex-api
+  template:
+    metadata:
+      labels:
+        app: freya-codex-api
+    spec:
+      containers:
+      - name: freya-codex-api
+        image: ghcr.io/qbitos/qbitos-freya:latest
+        imagePullPolicy: IfNotPresent
+        command: ["uv", "run", "python", "codex_api.py", "--host", "0.0.0.0", "--port", "8787"]
+        ports:
+        - containerPort: 8787
+          name: http
+        env:
+        - name: CODEX_CANONICAL_BASE
+          value: "https://erika.qbitos.ai"
+        - name: CODEX_API_PORT
+          value: "8787"
+        envFrom:
+        - secretRef:
+            name: freya-codex-secrets
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "1500m"
+            memory: "1Gi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8787
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8787
+          initialDelaySeconds: 10
+          periodSeconds: 20

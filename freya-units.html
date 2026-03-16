@@ -619,6 +619,8 @@
             <button class="nav-tab" data-tab="celestial">✦ Celestial</button>
             <button class="nav-tab" data-tab="codex">◎ Codex</button>
             <button class="nav-tab" data-tab="quantum">⚛ Quantum Nav</button>
+            <button class="nav-tab" data-tab="chemistry">🧪 Chemistry</button>
+            <button class="nav-tab" data-tab="geometry">📐 Geometry</button>
             <button class="nav-tab" data-tab="dither">▓ Dither</button>
             <button class="nav-tab" data-tab="bracelet">⌁ Bracelet</button>
             <button class="nav-tab" data-tab="music">♫ Music</button>
@@ -1034,7 +1036,100 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
         </div>
 
         <!-- ════════════════════════════════════════════ -->
-        <!-- SECTION 5: DITHER TOOL                      -->
+        <!-- SECTION 5: CHEMISTRY                        -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section" id="sec-chemistry">
+            <div class="card">
+                <div class="card-title"><span class="icon">🧪</span> Chemistry — Periodic Table + Bond Lane</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:8px;">
+                    Material-science lane inspired by Meta-style research workflows. Lookup periodic elements and estimate bond class from electronegativity delta.
+                </div>
+                <div class="food-grid">
+                    <div>
+                        <label class="convert-label">Element lookup (symbol, name, or atomic number)</label>
+                        <input id="chem-element-query" type="text" placeholder="e.g. C, Silicon, 14">
+                    </div>
+                    <div style="display:flex;align-items:end;gap:8px;">
+                        <button class="quick-btn" id="chem-element-lookup">Lookup Element</button>
+                        <button class="quick-btn" id="chem-copy-cli">Copy Chemistry CLI</button>
+                    </div>
+                </div>
+                <div class="food-output" id="chem-element-output">Element lookup ready.</div>
+                <div class="quick-row" style="margin-top:8px;">
+                    <input id="chem-bond-a" type="text" placeholder="Bond A (e.g. Na)">
+                    <input id="chem-bond-b" type="text" placeholder="Bond B (e.g. Cl)">
+                    <button class="quick-btn" id="chem-bond-run">Estimate Bond</button>
+                </div>
+                <div class="food-output" id="chem-bond-output">Bond lane ready.</div>
+            </div>
+            <div class="card card-light">
+                <div class="card-title"><span class="icon">⚗</span> Compact Periodic Grid</div>
+                <div id="chem-periodic-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:6px;"></div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 6: GEOMETRY                         -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section" id="sec-geometry">
+            <div class="card">
+                <div class="card-title"><span class="icon">📐</span> Geometry Plot + Shapes Studio</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:8px;">
+                    Plot math expressions and compute shape metrics in a Quartz Composer / vis.gl / three.js style geometry lane.
+                </div>
+                <div class="food-grid">
+                    <div>
+                        <label class="convert-label">Plot expression (x)</label>
+                        <input id="geom-plot-expr" type="text" value="sin(x)">
+                    </div>
+                    <div>
+                        <label class="convert-label">X min / X max / steps</label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+                            <input id="geom-plot-min" type="number" step="any" value="-10">
+                            <input id="geom-plot-max" type="number" step="any" value="10">
+                            <input id="geom-plot-steps" type="number" step="1" value="400">
+                        </div>
+                    </div>
+                </div>
+                <div class="quick-row" style="margin-top:8px;">
+                    <button class="quick-btn" id="geom-plot-run">Run Plot</button>
+                    <button class="quick-btn" id="geom-copy-cli">Copy Geometry CLI</button>
+                </div>
+                <div id="geom-plot-output" style="height:240px;border:1px solid var(--border);border-radius:8px;margin-top:8px;"></div>
+                <div class="food-output" id="geom-plot-status">Geometry plot lane ready.</div>
+            </div>
+            <div class="card card-light">
+                <div class="card-title"><span class="icon">⬢</span> Shape Metrics</div>
+                <div class="food-grid">
+                    <div>
+                        <label class="convert-label">Shape</label>
+                        <select id="geom-shape-type">
+                            <option value="circle">circle</option>
+                            <option value="rectangle">rectangle</option>
+                            <option value="triangle">triangle</option>
+                            <option value="sphere">sphere</option>
+                            <option value="cube">cube</option>
+                            <option value="cylinder">cylinder</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="convert-label">a / b / c</label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+                            <input id="geom-shape-a" type="number" step="any" value="1">
+                            <input id="geom-shape-b" type="number" step="any" value="1">
+                            <input id="geom-shape-c" type="number" step="any" value="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="quick-row" style="margin-top:8px;">
+                    <button class="quick-btn" id="geom-shape-run">Compute Shape</button>
+                </div>
+                <div class="food-output" id="geom-shape-output">Shape lane ready.</div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 7: DITHER TOOL                      -->
         <!-- ════════════════════════════════════════════ -->
         <div class="section" id="sec-dither">
             <div class="card">
@@ -1390,6 +1485,12 @@ function activateTab(tabName){
     }
     if(tabName==='music'&&typeof runMusicDawSync==='function'){
         requestAnimationFrame(()=>{ runMusicDawSync(); });
+    }
+    if(tabName==='chemistry'&&typeof renderChemPeriodic==='function'){
+        requestAnimationFrame(()=>{ renderChemPeriodic(); });
+    }
+    if(tabName==='geometry'&&typeof runGeometryPlot==='function'){
+        requestAnimationFrame(()=>{ runGeometryPlot(); });
     }
 }
 const qpInput = document.getElementById('quick-prompt-input');
@@ -2329,6 +2430,240 @@ if(musicBroadcastKbatchBtn){
     musicBroadcastKbatchBtn.addEventListener('click', ()=>{ broadcastMusicKbatch(); });
 }
 window.addEventListener('beforeunload', ()=>{ stopMusicOsc(); });
+
+/* ═══════════════════════════════════════════════════
+   CHEMISTRY + GEOMETRY LANES
+   ═══════════════════════════════════════════════════ */
+const chemElementQueryEl = document.getElementById('chem-element-query');
+const chemElementLookupBtn = document.getElementById('chem-element-lookup');
+const chemCopyCliBtn = document.getElementById('chem-copy-cli');
+const chemElementOutputEl = document.getElementById('chem-element-output');
+const chemBondAEl = document.getElementById('chem-bond-a');
+const chemBondBEl = document.getElementById('chem-bond-b');
+const chemBondRunBtn = document.getElementById('chem-bond-run');
+const chemBondOutputEl = document.getElementById('chem-bond-output');
+const chemPeriodicGridEl = document.getElementById('chem-periodic-grid');
+
+const CHEM_ELEMENTS = [
+    {z:1,sym:'H',name:'Hydrogen',mass:1.008,en:2.20,cat:'nonmetal'},
+    {z:2,sym:'He',name:'Helium',mass:4.0026,en:0,cat:'noble'},
+    {z:3,sym:'Li',name:'Lithium',mass:6.94,en:0.98,cat:'alkali'},
+    {z:4,sym:'Be',name:'Beryllium',mass:9.0122,en:1.57,cat:'alkaline'},
+    {z:5,sym:'B',name:'Boron',mass:10.81,en:2.04,cat:'metalloid'},
+    {z:6,sym:'C',name:'Carbon',mass:12.011,en:2.55,cat:'nonmetal'},
+    {z:7,sym:'N',name:'Nitrogen',mass:14.007,en:3.04,cat:'nonmetal'},
+    {z:8,sym:'O',name:'Oxygen',mass:15.999,en:3.44,cat:'nonmetal'},
+    {z:9,sym:'F',name:'Fluorine',mass:18.998,en:3.98,cat:'halogen'},
+    {z:10,sym:'Ne',name:'Neon',mass:20.18,en:0,cat:'noble'},
+    {z:11,sym:'Na',name:'Sodium',mass:22.99,en:0.93,cat:'alkali'},
+    {z:12,sym:'Mg',name:'Magnesium',mass:24.305,en:1.31,cat:'alkaline'},
+    {z:13,sym:'Al',name:'Aluminum',mass:26.982,en:1.61,cat:'metal'},
+    {z:14,sym:'Si',name:'Silicon',mass:28.085,en:1.90,cat:'metalloid'},
+    {z:15,sym:'P',name:'Phosphorus',mass:30.974,en:2.19,cat:'nonmetal'},
+    {z:16,sym:'S',name:'Sulfur',mass:32.06,en:2.58,cat:'nonmetal'},
+    {z:17,sym:'Cl',name:'Chlorine',mass:35.45,en:3.16,cat:'halogen'},
+    {z:18,sym:'Ar',name:'Argon',mass:39.948,en:0,cat:'noble'},
+    {z:19,sym:'K',name:'Potassium',mass:39.098,en:0.82,cat:'alkali'},
+    {z:20,sym:'Ca',name:'Calcium',mass:40.078,en:1.00,cat:'alkaline'},
+    {z:22,sym:'Ti',name:'Titanium',mass:47.867,en:1.54,cat:'metal'},
+    {z:24,sym:'Cr',name:'Chromium',mass:51.996,en:1.66,cat:'metal'},
+    {z:26,sym:'Fe',name:'Iron',mass:55.845,en:1.83,cat:'metal'},
+    {z:28,sym:'Ni',name:'Nickel',mass:58.693,en:1.91,cat:'metal'},
+    {z:29,sym:'Cu',name:'Copper',mass:63.546,en:1.90,cat:'metal'},
+    {z:30,sym:'Zn',name:'Zinc',mass:65.38,en:1.65,cat:'metal'},
+    {z:47,sym:'Ag',name:'Silver',mass:107.87,en:1.93,cat:'metal'},
+    {z:79,sym:'Au',name:'Gold',mass:196.97,en:2.54,cat:'metal'},
+];
+const CHEM_BY_SYM = new Map(CHEM_ELEMENTS.map((e)=>[e.sym.toUpperCase(), e]));
+const CHEM_BY_NAME = new Map(CHEM_ELEMENTS.map((e)=>[e.name.toLowerCase(), e]));
+function chemLookup(query){
+    const q = String(query || '').trim();
+    if(!q) return null;
+    if(/^\d+$/.test(q)){
+        const z = Number(q);
+        return CHEM_ELEMENTS.find((e)=>e.z===z) || null;
+    }
+    return CHEM_BY_SYM.get(q.toUpperCase()) || CHEM_BY_NAME.get(q.toLowerCase()) || null;
+}
+function renderChemPeriodic(){
+    if(!chemPeriodicGridEl) return;
+    chemPeriodicGridEl.innerHTML = '';
+    CHEM_ELEMENTS.forEach((e)=>{
+        const btn = document.createElement('button');
+        btn.className = 'quick-btn';
+        btn.style.textAlign = 'left';
+        btn.innerHTML = `<b>${e.sym}</b><br><span style="font-size:0.6875rem;color:var(--text-muted);">${e.z} · ${e.name}</span>`;
+        btn.addEventListener('click', ()=>{
+            if(chemElementQueryEl) chemElementQueryEl.value = e.sym;
+            runChemLookup();
+        });
+        chemPeriodicGridEl.appendChild(btn);
+    });
+}
+function runChemLookup(){
+    const item = chemLookup(chemElementQueryEl?.value || '');
+    if(!chemElementOutputEl) return null;
+    if(!item){
+        chemElementOutputEl.textContent = 'Element not found. Try symbol/name/atomic number.';
+        return null;
+    }
+    chemElementOutputEl.textContent =
+        `${item.name} (${item.sym}) Z=${item.z} mass=${item.mass}u electronegativity=${item.en} category=${item.cat}`;
+    return item;
+}
+function runChemBond(){
+    const a = chemLookup(chemBondAEl?.value || '');
+    const b = chemLookup(chemBondBEl?.value || '');
+    if(!chemBondOutputEl){
+        return null;
+    }
+    if(!a || !b){
+        chemBondOutputEl.textContent = 'Bond estimate requires two valid elements.';
+        return null;
+    }
+    const delta = Math.abs((Number(a.en) || 0) - (Number(b.en) || 0));
+    const kind = delta > 1.7 ? 'ionic' : (delta > 0.4 ? 'polar-covalent' : 'covalent');
+    const proxy = Math.round((delta + 0.5) * 180);
+    const materialHint = kind === 'covalent'
+        ? 'high lattice stability candidate'
+        : (kind === 'polar-covalent' ? 'mixed-interface material candidate' : 'charge-transfer crystal candidate');
+    chemBondOutputEl.textContent =
+        `${a.sym}-${b.sym} ΔEN=${delta.toFixed(3)} => ${kind} | bond-energy-proxy=${proxy} kJ/mol | ${materialHint}`;
+    return {a:a.sym,b:b.sym,deltaEN:delta,bondType:kind,bondEnergyProxyKJMol:proxy,materialHint};
+}
+function currentChemCli(){
+    const q = String(chemElementQueryEl?.value || 'Si').trim() || 'Si';
+    const a = String(chemBondAEl?.value || 'Na').trim() || 'Na';
+    const b = String(chemBondBEl?.value || 'Cl').trim() || 'Cl';
+    return `./freya chemistry periodic --query "${q.replaceAll('"','\\"')}" && ./freya chemistry bond --a ${a} --b ${b}`;
+}
+if(chemElementLookupBtn){
+    chemElementLookupBtn.addEventListener('click', ()=>{ runChemLookup(); });
+}
+if(chemBondRunBtn){
+    chemBondRunBtn.addEventListener('click', ()=>{ runChemBond(); });
+}
+if(chemCopyCliBtn){
+    chemCopyCliBtn.addEventListener('click', async ()=>{
+        try{
+            await navigator.clipboard.writeText(currentChemCli());
+            chemCopyCliBtn.textContent = 'Copied Chemistry CLI';
+            setTimeout(()=>{ chemCopyCliBtn.textContent = 'Copy Chemistry CLI'; }, 1400);
+        }catch(_){}
+    });
+}
+renderChemPeriodic();
+
+const geomPlotExprEl = document.getElementById('geom-plot-expr');
+const geomPlotMinEl = document.getElementById('geom-plot-min');
+const geomPlotMaxEl = document.getElementById('geom-plot-max');
+const geomPlotStepsEl = document.getElementById('geom-plot-steps');
+const geomPlotRunBtn = document.getElementById('geom-plot-run');
+const geomCopyCliBtn = document.getElementById('geom-copy-cli');
+const geomPlotOutputEl = document.getElementById('geom-plot-output');
+const geomPlotStatusEl = document.getElementById('geom-plot-status');
+const geomShapeTypeEl = document.getElementById('geom-shape-type');
+const geomShapeAEl = document.getElementById('geom-shape-a');
+const geomShapeBEl = document.getElementById('geom-shape-b');
+const geomShapeCEl = document.getElementById('geom-shape-c');
+const geomShapeRunBtn = document.getElementById('geom-shape-run');
+const geomShapeOutputEl = document.getElementById('geom-shape-output');
+
+function geomEval(expr, x){
+    const e = String(expr || '').trim();
+    if(window.math && typeof math.evaluate === 'function'){
+        return Number(math.evaluate(e, {x}));
+    }
+    const fn = new Function('x', `const {sin,cos,tan,asin,acos,atan,log,exp,sqrt,pow,abs,PI,E}=Math; return (${e});`);
+    return Number(fn(x));
+}
+function runGeometryPlot(){
+    const expr = String(geomPlotExprEl?.value || '').trim();
+    const xmin = Number(geomPlotMinEl?.value || -10);
+    const xmax = Number(geomPlotMaxEl?.value || 10);
+    const steps = Math.max(20, Math.round(Number(geomPlotStepsEl?.value || 400)));
+    if(!expr){
+        if(geomPlotStatusEl) geomPlotStatusEl.textContent = 'Geometry plot: expression is empty.';
+        return null;
+    }
+    const xs = [];
+    const ys = [];
+    const dx = (xmax - xmin) / Math.max(1, steps);
+    for(let i=0;i<=steps;i++){
+        const x = xmin + (i * dx);
+        xs.push(x);
+        try{
+            const y = geomEval(expr, x);
+            ys.push(Number.isFinite(y) ? y : NaN);
+        }catch(_){
+            ys.push(NaN);
+        }
+    }
+    if(window.Plotly && geomPlotOutputEl){
+        Plotly.newPlot(geomPlotOutputEl, [{x:xs,y:ys,type:'scatter',mode:'lines',line:{color:'#06b6d4',width:2.2}}], {
+            paper_bgcolor:'#050810',plot_bgcolor:'#0a0f1a',margin:{t:34,r:12,b:30,l:42},
+            title:{text:`y = ${expr}`,font:{color:'#e2e8f0',size:13}},
+            xaxis:{gridcolor:'#1e2d4a',tickfont:{color:'#64748b'}},
+            yaxis:{gridcolor:'#1e2d4a',tickfont:{color:'#64748b'}}
+        }, {responsive:true,displayModeBar:false});
+    }
+    if(geomPlotStatusEl){
+        geomPlotStatusEl.textContent = `Geometry plot rendered for y=${expr} on [${xmin}, ${xmax}] with ${steps} steps.`;
+    }
+    return {expr,xmin,xmax,steps};
+}
+function runGeometryShape(){
+    const shape = String(geomShapeTypeEl?.value || 'circle');
+    const a = Math.max(0, Number(geomShapeAEl?.value || 0));
+    const b = Math.max(0, Number(geomShapeBEl?.value || 0));
+    const c = Math.max(0, Number(geomShapeCEl?.value || 0));
+    let out = {};
+    if(shape === 'circle'){
+        out = {shape,radius:a,area:Math.PI*a*a,perimeter:2*Math.PI*a};
+    }else if(shape === 'rectangle'){
+        out = {shape,width:a,height:b,area:a*b,perimeter:2*(a+b)};
+    }else if(shape === 'triangle'){
+        const s = (a+b+c)/2;
+        const area = Math.sqrt(Math.max(0, s*(s-a)*(s-b)*(s-c)));
+        out = {shape,a,b,c,perimeter:a+b+c,area};
+    }else if(shape === 'sphere'){
+        out = {shape,radius:a,surface:4*Math.PI*a*a,volume:(4/3)*Math.PI*a*a*a};
+    }else if(shape === 'cube'){
+        out = {shape,side:a,surface:6*a*a,volume:a*a*a};
+    }else if(shape === 'cylinder'){
+        out = {shape,radius:a,height:b,surface:(2*Math.PI*a*(a+b)),volume:(Math.PI*a*a*b)};
+    }
+    if(geomShapeOutputEl){
+        geomShapeOutputEl.textContent = JSON.stringify(out, null, 2);
+    }
+    return out;
+}
+function currentGeometryCli(){
+    const expr = String(geomPlotExprEl?.value || 'sin(x)').trim() || 'sin(x)';
+    const xmin = Number(geomPlotMinEl?.value || -10);
+    const xmax = Number(geomPlotMaxEl?.value || 10);
+    const steps = Math.max(20, Math.round(Number(geomPlotStepsEl?.value || 400)));
+    const shape = String(geomShapeTypeEl?.value || 'circle');
+    const a = Math.max(0, Number(geomShapeAEl?.value || 0));
+    const b = Math.max(0, Number(geomShapeBEl?.value || 0));
+    const c = Math.max(0, Number(geomShapeCEl?.value || 0));
+    return `./freya geometry plot --expr "${expr.replaceAll('"','\\"')}" --x-min ${xmin} --x-max ${xmax} --steps ${steps} && ./freya geometry shape --type ${shape} --a ${a} --b ${b} --c ${c}`;
+}
+if(geomPlotRunBtn){
+    geomPlotRunBtn.addEventListener('click', ()=>{ runGeometryPlot(); });
+}
+if(geomShapeRunBtn){
+    geomShapeRunBtn.addEventListener('click', ()=>{ runGeometryShape(); });
+}
+if(geomCopyCliBtn){
+    geomCopyCliBtn.addEventListener('click', async ()=>{
+        try{
+            await navigator.clipboard.writeText(currentGeometryCli());
+            geomCopyCliBtn.textContent = 'Copied Geometry CLI';
+            setTimeout(()=>{ geomCopyCliBtn.textContent = 'Copy Geometry CLI'; }, 1400);
+        }catch(_){}
+    });
+}
 
 /* ═══════════════════════════════════════════════════
    UNIT DATA — 9 categories, 70+ units

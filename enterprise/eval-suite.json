@@ -1,0 +1,11 @@
+{
+  "note": "beyondBINARY quantum-prefixed | uvspeed | {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1}",
+  "version": "1.0.0",
+  "name": "enterprise-core-suite",
+  "prompts": [
+    "Summarize enterprise readiness for FreyaUnits in three bullets.",
+    "Compare two launch telemetry runs and report max drift and risk.",
+    "Generate an ops checklist for secure API rollout with audit logging.",
+    "Explain how rulesets and artifact lifecycle enforce compliance."
+  ]
+}

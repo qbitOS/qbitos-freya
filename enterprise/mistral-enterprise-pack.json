@@ -1,0 +1,43 @@
+{
+  "note": "beyondBINARY quantum-prefixed | uvspeed | {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1}",
+  "version": "1.0.0",
+  "provider": "mistral",
+  "tasks": {
+    "chat": [
+      "mistral-small-latest",
+      "mistral-medium-latest",
+      "mistral-large-latest"
+    ],
+    "code": [
+      "codestral-latest",
+      "mistral-small-latest"
+    ],
+    "analysis": [
+      "mistral-medium-latest",
+      "mistral-small-latest"
+    ],
+    "ops": [
+      "mistral-small-latest"
+    ]
+  },
+  "backendFallback": [
+    "mistral",
+    "ugrad",
+    "lmstudio",
+    "ollama",
+    "huggingface"
+  ],
+  "retryPolicy": {
+    "maxAttempts": 3,
+    "backoffMs": [
+      100,
+      300,
+      900
+    ]
+  },
+  "observability": {
+    "trackLatencyMs": true,
+    "trackErrorRate": true,
+    "trackTokenCost": true
+  }
+}

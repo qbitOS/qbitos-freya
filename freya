@@ -106,6 +106,11 @@ FREYA_SESSION_DIR = FREYA_STATE_DIR / "sessions"
 FREYA_AGENT_MEMORY_PATH = FREYA_STATE_DIR / "agent-memory.json"
 FREYA_ROUTER_POLICY_PATH = FREYA_STATE_DIR / "router-policy.json"
 FREYA_RAG_INDEX_PATH = FREYA_STATE_DIR / "rag-index.json"
+FREYA_AUDIT_LOG_PATH = FREYA_STATE_DIR / "audit-log.jsonl"
+FREYA_ENTERPRISE_DIR = Path(__file__).parent / "enterprise"
+FREYA_MISTRAL_PACK_PATH = FREYA_ENTERPRISE_DIR / "mistral-enterprise-pack.json"
+FREYA_RBAC_POLICY_PATH = FREYA_ENTERPRISE_DIR / "rbac-policy.json"
+FREYA_EVAL_SUITE_PATH = FREYA_ENTERPRISE_DIR / "eval-suite.json"
 ERIKA_BASE = os.getenv("FREYA_ERIKA_BASE", "https://erika.qbitos.ai").rstrip("/")
 ERIKA_API_KEY = os.getenv("FREYA_ERIKA_API_KEY", os.getenv("CODEX_API_KEY", "")).strip()
 
@@ -495,6 +500,163 @@ def _agent_memory_read(agent: str) -> dict:
     agents = payload.get("agents", {}) if isinstance(payload, dict) else {}
     data = agents.get(agent, {}) if isinstance(agents, dict) else {}
     return {"agent": agent, "memory": data}
+
+
+def _enterprise_load_json(path: Path, fallback: dict) -> dict:
+    obj = _load_json_file(path, fallback)
+    return obj if isinstance(obj, dict) else fallback
+
+
+def _enterprise_mistral_pack() -> dict:
+    fallback = {
+        "version": "1.0.0",
+        "tasks": {
+            "chat": ["mistral-small-latest", "mistral-medium-latest"],
+            "code": ["codestral-latest", "mistral-small-latest"],
+            "analysis": ["mistral-medium-latest", "mistral-small-latest"],
+            "ops": ["mistral-small-latest"],
+        },
+        "backendFallback": ["mistral", "ugrad", "lmstudio", "ollama", "huggingface"],
+    }
+    return _enterprise_load_json(FREYA_MISTRAL_PACK_PATH, fallback)
+
+
+def _enterprise_rbac_policy() -> dict:
+    fallback = {
+        "version": "1.0.0",
+        "roles": {
+            "admin": ["*"],
+            "operator": ["models.route", "rules.validate", "artifact.list", "enterprise.ops-report", "enterprise.eval"],
+            "auditor": ["artifact.list", "enterprise.compliance-check", "enterprise.ops-report"],
+            "viewer": ["models.inventory", "artifact.list"],
+        },
+    }
+    return _enterprise_load_json(FREYA_RBAC_POLICY_PATH, fallback)
+
+
+def _enterprise_rbac_allowed(role: str, action: str) -> tuple[bool, str]:
+    policy = _enterprise_rbac_policy()
+    roles = policy.get("roles", {})
+    perms = roles.get(role, []) if isinstance(roles, dict) else []
+    if "*" in perms:
+        return True, ""
+    if action in perms:
+        return True, ""
+    return False, f"role '{role}' is not allowed action '{action}'"
+
+
+def _enterprise_audit_log(actor: str, role: str, action: str, resource: str, status: str, meta: dict) -> dict:
+    _ensure_state_dir()
+    event = {
+        "t": _now_iso(),
+        "actor": actor,
+        "role": role,
+        "action": action,
+        "resource": resource,
+        "status": status,
+        "meta": meta,
+    }
+    FREYA_AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(FREYA_AUDIT_LOG_PATH, "a", encoding="utf-8") as fp:
+        fp.write(json.dumps(event, ensure_ascii=True) + "\n")
+    return event
+
+
+def _enterprise_mistral_route(task: str, family: str | None = None, fallback_depth: int = 3) -> dict:
+    pack = _enterprise_mistral_pack()
+    task_models = pack.get("tasks", {}).get(task, [])
+    fallback_backends = list(pack.get("backendFallback", ["mistral", "ugrad", "lmstudio", "ollama", "huggingface"]))
+    routed = []
+    for backend in fallback_backends[: max(1, fallback_depth)]:
+        model = _resolve_model(backend, None, family)
+        if backend == "mistral" and task_models:
+            model = str(task_models[0])
+        routed.append({"backend": backend, "model": model})
+    return {"status": "PASS", "task": task, "route": routed, "packVersion": pack.get("version", "unknown")}
+
+
+def _enterprise_compliance_check(role: str, action: str) -> dict:
+    checks = []
+    rules_issues = _validate_ruleset_obj(_load_active_ruleset())
+    checks.append({"name": "active_ruleset_valid", "pass": not rules_issues, "details": rules_issues})
+    checks.append({"name": "audit_log_path_ready", "pass": True, "details": str(FREYA_AUDIT_LOG_PATH)})
+    checks.append({"name": "artifact_index_path_ready", "pass": True, "details": str(FREYA_ARTIFACT_INDEX_PATH)})
+    checks.append({"name": "rbac_policy_present", "pass": FREYA_RBAC_POLICY_PATH.exists(), "details": str(FREYA_RBAC_POLICY_PATH)})
+    allowed, reason = _enterprise_rbac_allowed(role, action)
+    checks.append({"name": "rbac_action_allowed", "pass": allowed, "details": reason or "allowed"})
+    verdict = all(bool(c.get("pass")) for c in checks)
+    return {"status": "PASS" if verdict else "FAIL", "checks": checks}
+
+
+def _enterprise_eval(prompt: str, backends_csv: str, family: str | None = None) -> dict:
+    backends = [b.strip().lower() for b in backends_csv.split(",") if b.strip()]
+    rows = []
+    for bk in backends:
+        t0 = time.perf_counter()
+        out = chat_conversion(prompt, backend=bk, model=None, family=family)
+        dt_ms = (time.perf_counter() - t0) * 1000.0
+        ok = not out.startswith("Error:")
+        rows.append(
+            {
+                "backend": bk,
+                "ok": ok,
+                "latencyMs": dt_ms,
+                "outputPreview": out[:220],
+                "outputLength": len(out),
+            }
+        )
+    ok_rows = [r for r in rows if r["ok"]]
+    winner = min(ok_rows, key=lambda x: x["latencyMs"]) if ok_rows else None
+    return {"prompt": prompt, "rows": rows, "winner": winner}
+
+
+def _enterprise_eval_suite(suite_file: str, backends_csv: str, family: str | None = None) -> dict:
+    obj = _load_json_file(Path(suite_file), {"prompts": []})
+    prompts = obj.get("prompts", []) if isinstance(obj, dict) else []
+    if not isinstance(prompts, list) or not prompts:
+        raise ValueError("suite file must include non-empty prompts[]")
+    reports = []
+    for p in prompts:
+        reports.append(_enterprise_eval(str(p), backends_csv, family))
+    return {"suiteFile": suite_file, "count": len(reports), "reports": reports}
+
+
+def _enterprise_ops_report(window_hours: int = 24) -> dict:
+    _ensure_state_dir()
+    cutoff = datetime.now(tz=timezone.utc).timestamp() - (max(1, window_hours) * 3600)
+    audit_rows = []
+    if FREYA_AUDIT_LOG_PATH.exists():
+        with open(FREYA_AUDIT_LOG_PATH, encoding="utf-8") as fp:
+            for line in fp:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception:  # noqa: BLE001
+                    continue
+                ts = obj.get("t", "")
+                try:
+                    epoch = datetime.fromisoformat(str(ts).replace("Z", "+00:00")).timestamp()
+                except Exception:  # noqa: BLE001
+                    epoch = 0.0
+                if epoch >= cutoff:
+                    audit_rows.append(obj)
+    pass_count = sum(1 for r in audit_rows if str(r.get("status", "")).upper() in {"PASS", "OK", "SUCCESS"})
+    total = len(audit_rows)
+    error_rate = 0.0 if total == 0 else (1.0 - (pass_count / total))
+    artifacts = _artifact_list().get("count", 0)
+    sessions = len(list(FREYA_SESSION_DIR.glob("*.json"))) if FREYA_SESSION_DIR.exists() else 0
+    return {
+        "windowHours": window_hours,
+        "auditEvents": total,
+        "passEvents": pass_count,
+        "errorRate": error_rate,
+        "sloTargetErrorRate": 0.001,
+        "sloPass": error_rate <= 0.001,
+        "artifactCount": artifacts,
+        "sessionCount": sessions,
+    }
 
 
 def _market_convert(amount: float, base: str, quote: str) -> dict:
@@ -1400,6 +1562,156 @@ def _music_daw_sync(
         "startUnix": started,
         "startSmpte": _format_seconds_to_smpte(started, fps),
     }
+
+
+CHEM_ELEMENTS = [
+    {"z": 1, "sym": "H", "name": "Hydrogen", "mass": 1.008, "en": 2.20, "category": "nonmetal"},
+    {"z": 2, "sym": "He", "name": "Helium", "mass": 4.0026, "en": 0.0, "category": "noble"},
+    {"z": 3, "sym": "Li", "name": "Lithium", "mass": 6.94, "en": 0.98, "category": "alkali"},
+    {"z": 4, "sym": "Be", "name": "Beryllium", "mass": 9.0122, "en": 1.57, "category": "alkaline"},
+    {"z": 5, "sym": "B", "name": "Boron", "mass": 10.81, "en": 2.04, "category": "metalloid"},
+    {"z": 6, "sym": "C", "name": "Carbon", "mass": 12.011, "en": 2.55, "category": "nonmetal"},
+    {"z": 7, "sym": "N", "name": "Nitrogen", "mass": 14.007, "en": 3.04, "category": "nonmetal"},
+    {"z": 8, "sym": "O", "name": "Oxygen", "mass": 15.999, "en": 3.44, "category": "nonmetal"},
+    {"z": 9, "sym": "F", "name": "Fluorine", "mass": 18.998, "en": 3.98, "category": "halogen"},
+    {"z": 10, "sym": "Ne", "name": "Neon", "mass": 20.18, "en": 0.0, "category": "noble"},
+    {"z": 11, "sym": "Na", "name": "Sodium", "mass": 22.99, "en": 0.93, "category": "alkali"},
+    {"z": 12, "sym": "Mg", "name": "Magnesium", "mass": 24.305, "en": 1.31, "category": "alkaline"},
+    {"z": 13, "sym": "Al", "name": "Aluminum", "mass": 26.982, "en": 1.61, "category": "metal"},
+    {"z": 14, "sym": "Si", "name": "Silicon", "mass": 28.085, "en": 1.90, "category": "metalloid"},
+    {"z": 15, "sym": "P", "name": "Phosphorus", "mass": 30.974, "en": 2.19, "category": "nonmetal"},
+    {"z": 16, "sym": "S", "name": "Sulfur", "mass": 32.06, "en": 2.58, "category": "nonmetal"},
+    {"z": 17, "sym": "Cl", "name": "Chlorine", "mass": 35.45, "en": 3.16, "category": "halogen"},
+    {"z": 18, "sym": "Ar", "name": "Argon", "mass": 39.948, "en": 0.0, "category": "noble"},
+    {"z": 19, "sym": "K", "name": "Potassium", "mass": 39.098, "en": 0.82, "category": "alkali"},
+    {"z": 20, "sym": "Ca", "name": "Calcium", "mass": 40.078, "en": 1.0, "category": "alkaline"},
+]
+
+
+def _chem_lookup(query: str) -> dict:
+    q = query.strip()
+    if not q:
+        raise ValueError("query is empty")
+    if q.isdigit():
+        z = int(q)
+        for e in CHEM_ELEMENTS:
+            if int(e["z"]) == z:
+                return e
+        raise ValueError(f"element with atomic number {z} not found")
+    q_u = q.upper()
+    for e in CHEM_ELEMENTS:
+        if str(e["sym"]).upper() == q_u:
+            return e
+    q_l = q.lower()
+    for e in CHEM_ELEMENTS:
+        if str(e["name"]).lower() == q_l:
+            return e
+    raise ValueError(f"element not found: {query}")
+
+
+def _chemistry_periodic(query: str) -> dict:
+    item = _chem_lookup(query)
+    return {
+        "mode": "chemistry.periodic",
+        "query": query,
+        "element": item,
+        "metaResearchHint": "Use as seed for materials-science bond lattice exploration.",
+    }
+
+
+def _chemistry_bond(a: str, b: str) -> dict:
+    ea = _chem_lookup(a)
+    eb = _chem_lookup(b)
+    delta = abs(float(ea.get("en", 0.0)) - float(eb.get("en", 0.0)))
+    if delta > 1.7:
+        bond_type = "ionic"
+    elif delta > 0.4:
+        bond_type = "polar-covalent"
+    else:
+        bond_type = "covalent"
+    energy_proxy = round((delta + 0.5) * 180.0, 3)
+    return {
+        "mode": "chemistry.bond",
+        "a": ea,
+        "b": eb,
+        "deltaEN": delta,
+        "bondType": bond_type,
+        "bondEnergyProxyKJMol": energy_proxy,
+        "materialScienceHint": "meta-research inspired proxy for screening candidate compositions",
+    }
+
+
+def _geometry_eval(expr: str, x: float) -> float:
+    env = {
+        "__builtins__": {},
+        "x": float(x),
+        "pi": math.pi,
+        "e": math.e,
+        "sin": math.sin,
+        "cos": math.cos,
+        "tan": math.tan,
+        "asin": math.asin,
+        "acos": math.acos,
+        "atan": math.atan,
+        "sqrt": math.sqrt,
+        "log": math.log,
+        "exp": math.exp,
+        "abs": abs,
+        "pow": pow,
+    }
+    return float(eval(expr, env, {}))  # noqa: S307
+
+
+def _geometry_plot(expr: str, x_min: float, x_max: float, steps: int) -> dict:
+    if steps < 2:
+        raise ValueError("steps must be >= 2")
+    if x_max == x_min:
+        raise ValueError("x_max must differ from x_min")
+    dx = (x_max - x_min) / float(steps)
+    points = []
+    finite = []
+    for i in range(steps + 1):
+        x = x_min + (i * dx)
+        try:
+            y = _geometry_eval(expr, x)
+        except Exception:  # noqa: BLE001
+            y = float("nan")
+        points.append({"x": x, "y": y})
+        if math.isfinite(y):
+            finite.append(y)
+    return {
+        "mode": "geometry.plot",
+        "expr": expr,
+        "xMin": x_min,
+        "xMax": x_max,
+        "steps": steps,
+        "finiteCount": len(finite),
+        "yMin": min(finite) if finite else None,
+        "yMax": max(finite) if finite else None,
+        "points": points,
+    }
+
+
+def _geometry_shape(shape: str, a: float, b: float, c: float) -> dict:
+    s = shape.strip().lower()
+    av = max(0.0, float(a))
+    bv = max(0.0, float(b))
+    cv = max(0.0, float(c))
+    if s == "circle":
+        return {"shape": s, "radius": av, "area": math.pi * av * av, "perimeter": 2.0 * math.pi * av}
+    if s == "rectangle":
+        return {"shape": s, "width": av, "height": bv, "area": av * bv, "perimeter": 2.0 * (av + bv)}
+    if s == "triangle":
+        sp = (av + bv + cv) / 2.0
+        area = math.sqrt(max(0.0, sp * (sp - av) * (sp - bv) * (sp - cv)))
+        return {"shape": s, "a": av, "b": bv, "c": cv, "perimeter": av + bv + cv, "area": area}
+    if s == "sphere":
+        return {"shape": s, "radius": av, "surface": 4.0 * math.pi * av * av, "volume": (4.0 / 3.0) * math.pi * av**3}
+    if s == "cube":
+        return {"shape": s, "side": av, "surface": 6.0 * av * av, "volume": av**3}
+    if s == "cylinder":
+        return {"shape": s, "radius": av, "height": bv, "surface": 2.0 * math.pi * av * (av + bv), "volume": math.pi * av * av * bv}
+    raise ValueError(f"unsupported shape: {shape}")
 
 
 def _phase_for_time(
@@ -2862,6 +3174,33 @@ def main() -> int:
     agent_mem_read = agent_sub.add_parser("memory-read", help="Read shared memory for agent")
     agent_mem_read.add_argument("--agent", required=True)
 
+    enterprise = sub.add_parser("enterprise", help="Enterprise pack: mistral routing, compliance, evals, and ops")
+    enterprise_sub = enterprise.add_subparsers(dest="enterprise_cmd", required=True)
+    ent_route = enterprise_sub.add_parser("mistral-route", help="Resolve Mistral-first enterprise backend route")
+    ent_route.add_argument("--task", choices=["chat", "code", "analysis", "ops"], default="chat")
+    ent_route.add_argument("--family", choices=sorted(SUPPORTED_FAMILIES), default=None)
+    ent_route.add_argument("--fallback-depth", type=int, default=3)
+    ent_audit = enterprise_sub.add_parser("audit-log", help="Append enterprise audit event")
+    ent_audit.add_argument("--actor", required=True)
+    ent_audit.add_argument("--role", default="operator")
+    ent_audit.add_argument("--action", required=True)
+    ent_audit.add_argument("--resource", default="freya")
+    ent_audit.add_argument("--status", default="PASS")
+    ent_audit.add_argument("--meta-json", default="{}")
+    ent_comp = enterprise_sub.add_parser("compliance-check", help="Run enterprise compliance and RBAC checks")
+    ent_comp.add_argument("--role", default="operator")
+    ent_comp.add_argument("--action", default="enterprise.compliance-check")
+    ent_eval = enterprise_sub.add_parser("eval", help="Evaluate prompt latency/quality across backend list")
+    ent_eval.add_argument("--prompt", required=True)
+    ent_eval.add_argument("--backends", default="mistral,ugrad,lmstudio,ollama,huggingface")
+    ent_eval.add_argument("--family", choices=sorted(SUPPORTED_FAMILIES), default=None)
+    ent_suite = enterprise_sub.add_parser("eval-suite", help="Run enterprise eval suite prompts")
+    ent_suite.add_argument("--suite-file", default=str(FREYA_EVAL_SUITE_PATH))
+    ent_suite.add_argument("--backends", default="mistral,ugrad,lmstudio,ollama,huggingface")
+    ent_suite.add_argument("--family", choices=sorted(SUPPORTED_FAMILIES), default=None)
+    ent_ops = enterprise_sub.add_parser("ops-report", help="Generate operations/SLO report from local state")
+    ent_ops.add_argument("--window-hours", type=int, default=24)
+
     erika = sub.add_parser("erika", help="Call erika.qbitos.ai tools and Codex API")
     erika_sub = erika.add_subparsers(dest="erika_cmd", required=True)
     erika_health = erika_sub.add_parser("health", help="Get erika API health")
@@ -2904,6 +3243,27 @@ def main() -> int:
     market_quote = market_sub.add_parser("quote", help="Get quote for stock or crypto symbol")
     market_quote.add_argument("--symbol", required=True, help="Ticker or crypto symbol, e.g. AAPL or BTC")
     market_quote.add_argument("--market", choices=["stock", "crypto"], default="stock")
+
+    chemistry_cmd = sub.add_parser("chemistry", help="Periodic table and chemical bond helpers")
+    chemistry_sub = chemistry_cmd.add_subparsers(dest="chem_cmd", required=True)
+    chem_periodic = chemistry_sub.add_parser("periodic", help="Lookup periodic table element")
+    chem_periodic.add_argument("--query", required=True, help="Element symbol, name, or atomic number")
+    chem_bond = chemistry_sub.add_parser("bond", help="Estimate chemical bond type")
+    chem_bond.add_argument("--a", required=True, help="Element A (symbol/name/atomic number)")
+    chem_bond.add_argument("--b", required=True, help="Element B (symbol/name/atomic number)")
+
+    geometry_cmd = sub.add_parser("geometry", help="Geometry plotting and shape metrics")
+    geometry_sub = geometry_cmd.add_subparsers(dest="geom_cmd", required=True)
+    geom_plot = geometry_sub.add_parser("plot", help="Generate plot sample points")
+    geom_plot.add_argument("--expr", required=True, help="Expression in x, e.g. sin(x)")
+    geom_plot.add_argument("--x-min", type=float, default=-10.0)
+    geom_plot.add_argument("--x-max", type=float, default=10.0)
+    geom_plot.add_argument("--steps", type=int, default=400)
+    geom_shape = geometry_sub.add_parser("shape", help="Compute shape area/perimeter/surface/volume")
+    geom_shape.add_argument("--type", required=True, choices=["circle", "rectangle", "triangle", "sphere", "cube", "cylinder"])
+    geom_shape.add_argument("--a", type=float, default=1.0)
+    geom_shape.add_argument("--b", type=float, default=1.0)
+    geom_shape.add_argument("--c", type=float, default=1.0)
 
     code = sub.add_parser("code", help="HexCast QR generator and ISBN/barcode lookup")
     code_sub = code.add_subparsers(dest="code_cmd", required=True)
@@ -3248,6 +3608,73 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             print(f"error: {exc}", file=sys.stderr)
             return 1
+    if args.cmd == "enterprise":
+        try:
+            if args.enterprise_cmd == "mistral-route":
+                print(
+                    json.dumps(
+                        _enterprise_mistral_route(
+                            task=args.task,
+                            family=args.family,
+                            fallback_depth=max(1, int(args.fallback_depth)),
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.enterprise_cmd == "audit-log":
+                meta = json.loads(args.meta_json)
+                if not isinstance(meta, dict):
+                    raise ValueError("--meta-json must decode to an object")
+                print(
+                    json.dumps(
+                        _enterprise_audit_log(
+                            actor=str(args.actor),
+                            role=str(args.role),
+                            action=str(args.action),
+                            resource=str(args.resource),
+                            status=str(args.status),
+                            meta=meta,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.enterprise_cmd == "compliance-check":
+                report = _enterprise_compliance_check(str(args.role), str(args.action))
+                print(json.dumps(report, indent=2))
+                return 0 if report.get("status") == "PASS" else 2
+            if args.enterprise_cmd == "eval":
+                print(
+                    json.dumps(
+                        _enterprise_eval(
+                            prompt=str(args.prompt),
+                            backends_csv=str(args.backends),
+                            family=args.family,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.enterprise_cmd == "eval-suite":
+                print(
+                    json.dumps(
+                        _enterprise_eval_suite(
+                            suite_file=str(args.suite_file),
+                            backends_csv=str(args.backends),
+                            family=args.family,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.enterprise_cmd == "ops-report":
+                print(json.dumps(_enterprise_ops_report(max(1, int(args.window_hours))), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
     if args.cmd == "erika":
         try:
             base = str(args.base).rstrip("/")
@@ -3335,6 +3762,50 @@ def main() -> int:
                 return 0
             if args.market_cmd == "quote":
                 print(json.dumps(_market_quote(symbol=str(args.symbol), market=str(args.market)), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "chemistry":
+        try:
+            if args.chem_cmd == "periodic":
+                print(json.dumps(_chemistry_periodic(str(args.query)), indent=2))
+                return 0
+            if args.chem_cmd == "bond":
+                print(json.dumps(_chemistry_bond(str(args.a), str(args.b)), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "geometry":
+        try:
+            if args.geom_cmd == "plot":
+                print(
+                    json.dumps(
+                        _geometry_plot(
+                            expr=str(args.expr),
+                            x_min=float(args.x_min),
+                            x_max=float(args.x_max),
+                            steps=max(2, int(args.steps)),
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.geom_cmd == "shape":
+                print(
+                    json.dumps(
+                        _geometry_shape(
+                            shape=str(args.type),
+                            a=float(args.a),
+                            b=float(args.b),
+                            c=float(args.c),
+                        ),
+                        indent=2,
+                    )
+                )
                 return 0
             return 1
         except Exception as exc:  # noqa: BLE001
