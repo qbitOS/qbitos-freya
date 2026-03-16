@@ -105,12 +105,15 @@ FREYA_ARTIFACT_INDEX_PATH = FREYA_STATE_DIR / "artifacts" / "index.json"
 FREYA_SESSION_DIR = FREYA_STATE_DIR / "sessions"
 FREYA_AGENT_MEMORY_PATH = FREYA_STATE_DIR / "agent-memory.json"
 FREYA_ROUTER_POLICY_PATH = FREYA_STATE_DIR / "router-policy.json"
+FREYA_ROUTER_METRICS_PATH = FREYA_STATE_DIR / "router-metrics.json"
 FREYA_RAG_INDEX_PATH = FREYA_STATE_DIR / "rag-index.json"
 FREYA_AUDIT_LOG_PATH = FREYA_STATE_DIR / "audit-log.jsonl"
+FREYA_AGENT_HANDOFF_PATH = FREYA_STATE_DIR / "agent-handoffs.jsonl"
 FREYA_ENTERPRISE_DIR = Path(__file__).parent / "enterprise"
 FREYA_MISTRAL_PACK_PATH = FREYA_ENTERPRISE_DIR / "mistral-enterprise-pack.json"
 FREYA_RBAC_POLICY_PATH = FREYA_ENTERPRISE_DIR / "rbac-policy.json"
 FREYA_EVAL_SUITE_PATH = FREYA_ENTERPRISE_DIR / "eval-suite.json"
+FREYA_PLUGIN_INDEX_PATH = FREYA_ENTERPRISE_DIR / "plugin-index.json"
 ERIKA_BASE = os.getenv("FREYA_ERIKA_BASE", "https://erika.qbitos.ai").rstrip("/")
 ERIKA_API_KEY = os.getenv("FREYA_ERIKA_API_KEY", os.getenv("CODEX_API_KEY", "")).strip()
 
@@ -414,6 +417,106 @@ def _session_path(session_id: str) -> Path:
     return FREYA_SESSION_DIR / f"{safe}.json"
 
 
+def _session_list(status: str | None = None) -> dict:
+    _ensure_state_dir()
+    items = []
+    for p in sorted(FREYA_SESSION_DIR.glob("*.json")):
+        obj = _load_json_file(p, {})
+        if not isinstance(obj, dict):
+            continue
+        st = str(obj.get("status", "active"))
+        if status and st != status:
+            continue
+        turns = obj.get("turns", [])
+        items.append(
+            {
+                "sessionId": obj.get("sessionId", p.stem),
+                "status": st,
+                "turns": len(turns) if isinstance(turns, list) else 0,
+                "updatedAt": obj.get("updatedAt"),
+                "path": str(p),
+            }
+        )
+    return {"count": len(items), "sessions": items}
+
+
+def _session_show(session_id: str) -> dict:
+    sp = _session_path(session_id)
+    if not sp.exists():
+        raise ValueError(f"session not found: {session_id}")
+    obj = _load_json_file(sp, {})
+    if not isinstance(obj, dict):
+        raise ValueError("invalid session payload")
+    return obj
+
+
+def _session_set_status(session_id: str, status: str) -> dict:
+    sp = _session_path(session_id)
+    if not sp.exists():
+        raise ValueError(f"session not found: {session_id}")
+    obj = _load_json_file(sp, {})
+    if not isinstance(obj, dict):
+        obj = {"sessionId": session_id, "turns": []}
+    obj["status"] = status
+    obj["updatedAt"] = _now_iso()
+    _save_json_file(sp, obj)
+    return {"status": "PASS", "sessionId": session_id, "sessionStatus": status}
+
+
+def _session_delete(session_id: str) -> dict:
+    sp = _session_path(session_id)
+    if not sp.exists():
+        raise ValueError(f"session not found: {session_id}")
+    sp.unlink()
+    return {"status": "PASS", "deleted": session_id}
+
+
+def _router_metrics_load() -> dict:
+    metrics = _load_json_file(FREYA_ROUTER_METRICS_PATH, {"backends": {}})
+    return metrics if isinstance(metrics, dict) else {"backends": {}}
+
+
+def _router_metrics_save(metrics: dict) -> None:
+    _save_json_file(FREYA_ROUTER_METRICS_PATH, metrics)
+
+
+def _router_record_eval(rows: list[dict]) -> None:
+    metrics = _router_metrics_load()
+    backends = metrics.get("backends", {})
+    if not isinstance(backends, dict):
+        backends = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        bk = str(row.get("backend", "")).strip().lower()
+        if not bk:
+            continue
+        slot = backends.get(bk, {"attempts": 0, "ok": 0, "latencyMsAvg": 0.0})
+        attempts = int(slot.get("attempts", 0)) + 1
+        ok_prev = int(slot.get("ok", 0))
+        ok_new = ok_prev + (1 if bool(row.get("ok")) else 0)
+        prev_avg = float(slot.get("latencyMsAvg", 0.0))
+        lat = float(row.get("latencyMs", 0.0))
+        new_avg = ((prev_avg * max(0, attempts - 1)) + lat) / max(1, attempts)
+        slot.update({"attempts": attempts, "ok": ok_new, "latencyMsAvg": new_avg, "updatedAt": _now_iso()})
+        backends[bk] = slot
+    metrics["backends"] = backends
+    _router_metrics_save(metrics)
+
+
+def _router_backend_score(backend: str, item: dict, metrics: dict) -> float:
+    if item.get("status") != "ok":
+        return -1e9
+    mb = metrics.get("backends", {}) if isinstance(metrics, dict) else {}
+    slot = mb.get(backend, {}) if isinstance(mb, dict) else {}
+    attempts = int(slot.get("attempts", 0))
+    ok = int(slot.get("ok", 0))
+    success_rate = (ok / attempts) if attempts > 0 else 0.5
+    latency = float(slot.get("latencyMsAvg", 1000.0))
+    # Higher is better: prioritize success, then lower latency.
+    return (success_rate * 1000.0) - latency
+
+
 def _chat_with_session(
     query: str,
     backend: str,
@@ -430,7 +533,9 @@ def _chat_with_session(
         _ensure_state_dir()
         FREYA_SESSION_DIR.mkdir(parents=True, exist_ok=True)
         sp = _session_path(sid)
-        payload = _load_json_file(sp, {"sessionId": sid, "turns": []})
+        payload = _load_json_file(sp, {"sessionId": sid, "turns": [], "status": "active"})
+        if isinstance(payload, dict) and str(payload.get("status", "active")) not in {"active", "open"}:
+            raise ValueError(f"session '{sid}' is closed/archived")
         turns = payload.get("turns", []) if isinstance(payload, dict) else []
         if not isinstance(turns, list):
             turns = []
@@ -450,12 +555,14 @@ def _chat_with_session(
     answer = chat_conversion(prompt, backend=backend, model=model, family=family)
     if sid:
         sp = _session_path(sid)
-        payload = _load_json_file(sp, {"sessionId": sid, "turns": []})
+        payload = _load_json_file(sp, {"sessionId": sid, "turns": [], "status": "active"})
         turns = payload.get("turns", []) if isinstance(payload, dict) else []
         if not isinstance(turns, list):
             turns = []
         turns.append({"t": _now_iso(), "user": query, "assistant": answer})
         payload["turns"] = turns
+        payload["status"] = payload.get("status", "active")
+        payload["updatedAt"] = _now_iso()
         _save_json_file(sp, payload)
     return answer, sid or None
 
@@ -467,13 +574,21 @@ def _router_choose(task: str, family: str | None = None) -> dict:
     task_order = policy.get("taskOrder", {})
     order = task_order.get(task, task_order.get("chat", ["lmstudio", "ollama", "ugrad", "huggingface", "mistral"]))
     inventory = models_inventory("all")
+    metrics = _router_metrics_load()
     tried = []
+    ranked = []
     for backend in order:
         item = inventory.get(backend, {})
-        tried.append({"backend": backend, "status": item.get("status", "unknown"), "models": item.get("models", [])[:5]})
+        score = _router_backend_score(backend, item, metrics)
+        row = {"backend": backend, "status": item.get("status", "unknown"), "models": item.get("models", [])[:5], "score": score}
+        tried.append(row)
         if item.get("status") == "ok":
-            model = _resolve_model(backend, None, family)
-            return {"status": "PASS", "task": task, "backend": backend, "model": model, "candidates": tried}
+            ranked.append(row)
+    if ranked:
+        ranked.sort(key=lambda x: float(x.get("score", -1e9)), reverse=True)
+        chosen = ranked[0]
+        model = _resolve_model(chosen["backend"], None, family)
+        return {"status": "PASS", "task": task, "backend": chosen["backend"], "model": model, "candidates": tried}
     raise RuntimeError(f"no healthy backend for task '{task}'")
 
 
@@ -500,6 +615,92 @@ def _agent_memory_read(agent: str) -> dict:
     agents = payload.get("agents", {}) if isinstance(payload, dict) else {}
     data = agents.get(agent, {}) if isinstance(agents, dict) else {}
     return {"agent": agent, "memory": data}
+
+
+def _agent_handoff_create(source: str, target: str, artifact_id: str, status: str, note: str) -> dict:
+    _ensure_state_dir()
+    event = {
+        "id": _sha256_text(f"{source}:{target}:{artifact_id}:{time.time_ns()}")[:16],
+        "t": _now_iso(),
+        "source": source,
+        "target": target,
+        "artifactId": artifact_id,
+        "status": status,
+        "note": note,
+    }
+    FREYA_AGENT_HANDOFF_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(FREYA_AGENT_HANDOFF_PATH, "a", encoding="utf-8") as fp:
+        fp.write(json.dumps(event, ensure_ascii=True) + "\n")
+    return event
+
+
+def _agent_handoff_list(limit: int = 50) -> dict:
+    items = []
+    if FREYA_AGENT_HANDOFF_PATH.exists():
+        with open(FREYA_AGENT_HANDOFF_PATH, encoding="utf-8") as fp:
+            for line in fp:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception:  # noqa: BLE001
+                    continue
+                if isinstance(obj, dict):
+                    items.append(obj)
+    return {"count": len(items[-max(1, limit) :]), "handoffs": items[-max(1, limit) :]}
+
+
+def _plugin_index_default() -> dict:
+    return {
+        "version": "1.0.0",
+        "plugins": [
+            {"name": "telemetry-pack", "version": "1.0.0", "dependencies": [], "sandbox": "strict"},
+            {"name": "materials-pack", "version": "1.0.0", "dependencies": ["telemetry-pack"], "sandbox": "standard"},
+        ],
+    }
+
+
+def _plugin_discover() -> dict:
+    idx = _load_json_file(FREYA_PLUGIN_INDEX_PATH, _plugin_index_default())
+    if not isinstance(idx, dict):
+        idx = _plugin_index_default()
+    plugins = idx.get("plugins", [])
+    if not isinstance(plugins, list):
+        plugins = []
+    return {"version": idx.get("version", "unknown"), "count": len(plugins), "plugins": plugins}
+
+
+def _plugin_resolve(name: str, include_optional: bool = False) -> dict:
+    idx = _plugin_discover()
+    plugins = idx.get("plugins", [])
+    by_name = {str(p.get("name")): p for p in plugins if isinstance(p, dict)}
+    if name not in by_name:
+        raise ValueError(f"plugin not found in index: {name}")
+    ordered = []
+    seen = set()
+
+    def walk(n: str) -> None:
+        if n in seen:
+            return
+        seen.add(n)
+        p = by_name.get(n, {"name": n, "dependencies": []})
+        deps = p.get("dependencies", []) if isinstance(p, dict) else []
+        if not isinstance(deps, list):
+            deps = []
+        for d in deps:
+            walk(str(d))
+        if include_optional and isinstance(p, dict):
+            for d in p.get("optionalDependencies", []) if isinstance(p.get("optionalDependencies", []), list) else []:
+                walk(str(d))
+        ordered.append(n)
+
+    walk(name)
+    installed = _load_json_file(FREYA_PLUGIN_REGISTRY_PATH, {"plugins": []})
+    plist = installed.get("plugins", []) if isinstance(installed, dict) else []
+    have = {str(p.get("name")) for p in plist if isinstance(p, dict)}
+    missing = [n for n in ordered if n not in have]
+    return {"plugin": name, "installOrder": ordered, "missing": missing, "alreadyInstalled": [n for n in ordered if n in have]}
 
 
 def _enterprise_load_json(path: Path, fallback: dict) -> dict:
@@ -607,6 +808,7 @@ def _enterprise_eval(prompt: str, backends_csv: str, family: str | None = None) 
         )
     ok_rows = [r for r in rows if r["ok"]]
     winner = min(ok_rows, key=lambda x: x["latencyMs"]) if ok_rows else None
+    _router_record_eval(rows)
     return {"prompt": prompt, "rows": rows, "winner": winner}
 
 
@@ -2773,6 +2975,12 @@ def _chunk_plugins_install(args: argparse.Namespace) -> dict:
     deps_csv = str(getattr(args, "plugin_deps", "") or "").strip()
     if deps_csv:
         deps = [d.strip() for d in deps_csv.split(",") if d.strip()]
+    else:
+        try:
+            resolved = _plugin_resolve(plugin_name, include_optional=False)
+            deps = [d for d in resolved.get("installOrder", []) if d != plugin_name]
+        except Exception:  # noqa: BLE001
+            deps = []
     registry = _load_json_file(FREYA_PLUGIN_REGISTRY_PATH, {"plugins": []})
     plugins = registry.get("plugins", []) if isinstance(registry, dict) else []
     for p in plugins:
@@ -3165,6 +3373,26 @@ def main() -> int:
     rag_query.add_argument("--query", required=True)
     rag_query.add_argument("--top-k", type=int, default=5)
 
+    session_cmd = sub.add_parser("session", help="Session lifecycle controls")
+    session_sub = session_cmd.add_subparsers(dest="session_cmd", required=True)
+    session_list = session_sub.add_parser("list", help="List saved sessions")
+    session_list.add_argument("--status", choices=["active", "archived"], default=None)
+    session_show = session_sub.add_parser("show", help="Show one session payload")
+    session_show.add_argument("--id", required=True)
+    session_archive = session_sub.add_parser("archive", help="Archive a session")
+    session_archive.add_argument("--id", required=True)
+    session_close = session_sub.add_parser("close", help="Close a session (alias of archive)")
+    session_close.add_argument("--id", required=True)
+    session_delete = session_sub.add_parser("delete", help="Delete a session file")
+    session_delete.add_argument("--id", required=True)
+
+    plugin_cmd = sub.add_parser("plugin", help="Plugin discovery and dependency resolution")
+    plugin_sub = plugin_cmd.add_subparsers(dest="plugin_cmd", required=True)
+    plugin_sub.add_parser("discover", help="List plugins from discovery index")
+    plugin_resolve = plugin_sub.add_parser("resolve", help="Resolve plugin dependency graph")
+    plugin_resolve.add_argument("--name", required=True)
+    plugin_resolve.add_argument("--include-optional", action="store_true")
+
     agent_cmd = sub.add_parser("agent", help="Agent collaboration and memory controls")
     agent_sub = agent_cmd.add_subparsers(dest="agent_cmd", required=True)
     agent_mem_write = agent_sub.add_parser("memory-write", help="Write shared memory value for agent")
@@ -3173,6 +3401,14 @@ def main() -> int:
     agent_mem_write.add_argument("--value", required=True)
     agent_mem_read = agent_sub.add_parser("memory-read", help="Read shared memory for agent")
     agent_mem_read.add_argument("--agent", required=True)
+    agent_handoff = agent_sub.add_parser("handoff", help="Append agent handoff ledger event")
+    agent_handoff.add_argument("--from-agent", required=True)
+    agent_handoff.add_argument("--to-agent", required=True)
+    agent_handoff.add_argument("--artifact-id", required=True)
+    agent_handoff.add_argument("--status", default="PASS")
+    agent_handoff.add_argument("--note", default="")
+    agent_handoff_list = agent_sub.add_parser("handoff-list", help="List agent handoff events")
+    agent_handoff_list.add_argument("--limit", type=int, default=50)
 
     enterprise = sub.add_parser("enterprise", help="Enterprise pack: mistral routing, compliance, evals, and ops")
     enterprise_sub = enterprise.add_subparsers(dest="enterprise_cmd", required=True)
@@ -3596,6 +3832,36 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             print(f"error: {exc}", file=sys.stderr)
             return 1
+    if args.cmd == "session":
+        try:
+            if args.session_cmd == "list":
+                print(json.dumps(_session_list(args.status), indent=2))
+                return 0
+            if args.session_cmd == "show":
+                print(json.dumps(_session_show(args.id), indent=2))
+                return 0
+            if args.session_cmd in {"archive", "close"}:
+                print(json.dumps(_session_set_status(args.id, "archived"), indent=2))
+                return 0
+            if args.session_cmd == "delete":
+                print(json.dumps(_session_delete(args.id), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "plugin":
+        try:
+            if args.plugin_cmd == "discover":
+                print(json.dumps(_plugin_discover(), indent=2))
+                return 0
+            if args.plugin_cmd == "resolve":
+                print(json.dumps(_plugin_resolve(args.name, args.include_optional), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
     if args.cmd == "agent":
         try:
             if args.agent_cmd == "memory-write":
@@ -3603,6 +3869,23 @@ def main() -> int:
                 return 0
             if args.agent_cmd == "memory-read":
                 print(json.dumps(_agent_memory_read(args.agent), indent=2))
+                return 0
+            if args.agent_cmd == "handoff":
+                print(
+                    json.dumps(
+                        _agent_handoff_create(
+                            source=args.from_agent,
+                            target=args.to_agent,
+                            artifact_id=args.artifact_id,
+                            status=args.status,
+                            note=args.note,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.agent_cmd == "handoff-list":
+                print(json.dumps(_agent_handoff_list(args.limit), indent=2))
                 return 0
             return 1
         except Exception as exc:  # noqa: BLE001

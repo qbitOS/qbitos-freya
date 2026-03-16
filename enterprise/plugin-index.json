@@ -1,0 +1,34 @@
+{
+  "version": "1.0.0",
+  "compliance": "beyondBINARY quantum-prefixed",
+  "plugins": [
+    {
+      "name": "telemetry-pack",
+      "version": "1.0.0",
+      "dependencies": [],
+      "optionalDependencies": [],
+      "sandbox": "strict",
+      "description": "Telemetry and mission analysis utilities."
+    },
+    {
+      "name": "materials-pack",
+      "version": "1.0.0",
+      "dependencies": [
+        "telemetry-pack"
+      ],
+      "optionalDependencies": [],
+      "sandbox": "standard",
+      "description": "Chemistry/material science helpers for Freya lanes."
+    },
+    {
+      "name": "quantum-pack",
+      "version": "1.0.0",
+      "dependencies": [],
+      "optionalDependencies": [
+        "materials-pack"
+      ],
+      "sandbox": "strict",
+      "description": "Quantum/Nav and preflight integrations."
+    }
+  ]
+}
