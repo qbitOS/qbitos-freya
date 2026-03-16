@@ -9,11 +9,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FreyaUnits by qbitOS: a precision converter, scientific calculator, celestial map, quantum navigation, and HexCast dither tooling in one fast web app.">
+    <meta name="keywords" content="FreyaUnits,qbitOS,unit converter,scientific calculator,quantum navigation,dither tool,terminal lane,voice assistant">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="author" content="qbitOS / ugrad.ai">
+    <meta name="application-name" content="FreyaUnits">
+    <meta name="apple-mobile-web-app-title" content="FreyaUnits">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="FreyaUnits">
+    <meta property="og:title" content="FreyaUnits — Galactic Precision Converter">
+    <meta property="og:description" content="Precision conversion, scientific compute, quantum navigation, and HexCast dither tooling.">
+    <meta property="og:url" content="https://freya.qbitos.ai/freya-units.html">
+    <meta property="og:image" content="https://freya.qbitos.ai/favicon.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="FreyaUnits — Galactic Precision Converter">
+    <meta name="twitter:description" content="qbitOS FreyaUnits with converter, calculator, celestial and dither tooling.">
+    <meta name="twitter:image" content="https://freya.qbitos.ai/favicon.png">
+    <link rel="canonical" href="https://freya.qbitos.ai/freya-units.html">
     <title>FreyaUnits — Galactic Precision Converter</title>
     <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="favicon.png">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#050810">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "FreyaUnits",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Web",
+      "url": "https://freya.qbitos.ai/freya-units.html",
+      "description": "FreyaUnits combines precision conversion, calculator tools, celestial views, quantum navigation, and HexCast dither workflows.",
+      "creator": {
+        "@type": "Organization",
+        "name": "qbitOS / ugrad.ai"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "isAccessibleForFree": true
+    }
+    </script>
     <!-- KaTeX -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.js"></script>
@@ -351,6 +390,12 @@
                 <div class="cat-pills" id="cat-pills"></div>
             </div>
 
+            <!-- Log scale visualization -->
+            <div class="card card-light">
+                <div class="card-title"><span class="icon">📏</span> Logarithmic Scale <span style="font-size:0.625rem;color:var(--text-muted);margin-left:auto;">v4.4</span></div>
+                <div class="canvas-wrap scale-wrap"><canvas id="scale-canvas" width="1100" height="80"></canvas></div>
+            </div>
+
             <!-- Main converter -->
             <div class="card">
                 <div class="card-title"><span class="icon">⇄</span> Precision Converter</div>
@@ -370,6 +415,18 @@
                     </div>
                 </div>
                 <div class="quick-row" id="conv-quick"></div>
+            </div>
+
+            <!-- Full conversion table -->
+            <div class="card">
+                <div class="card-title"><span class="icon">📋</span> Conversion Table</div>
+                <div class="conv-table" id="conv-table"></div>
+            </div>
+
+            <!-- Quantum/wave properties -->
+            <div class="card">
+                <div class="card-title"><span class="icon">⚛</span> Quantum &amp; Wave Properties</div>
+                <div id="quantum-props" style="font-family:var(--font-mono);font-size:0.8125rem;"></div>
             </div>
 
             <div class="card">
@@ -408,23 +465,6 @@
                 </div>
             </div>
 
-            <!-- Log scale visualization -->
-            <div class="card card-light">
-                <div class="card-title"><span class="icon">📏</span> Logarithmic Scale <span style="font-size:0.625rem;color:var(--text-muted);margin-left:auto;">v4.4</span></div>
-                <div class="canvas-wrap scale-wrap"><canvas id="scale-canvas" width="1100" height="80"></canvas></div>
-            </div>
-
-            <!-- Full conversion table -->
-            <div class="card">
-                <div class="card-title"><span class="icon">📋</span> Conversion Table</div>
-                <div class="conv-table" id="conv-table"></div>
-            </div>
-
-            <!-- Quantum/wave properties -->
-            <div class="card">
-                <div class="card-title"><span class="icon">⚛</span> Quantum &amp; Wave Properties</div>
-                <div id="quantum-props" style="font-family:var(--font-mono);font-size:0.8125rem;"></div>
-            </div>
             <div class="card">
                 <div class="card-title"><span class="icon">🧰</span> Terminal Pack + Mistral SDK Lane</div>
                 <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:8px;">

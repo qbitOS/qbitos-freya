@@ -45,6 +45,20 @@ uv run python tools/freya-hexcast-cli.py pack ErikaFreya path/to/ErikaFreya.png
 uv run python tools/freya-hexcast-cli.py batch
 ```
 
+## Mistral Vibe agent discovery
+
+- `AGENTS.md` at repo root for agent context/autodiscovery
+- `.vibe/skills/freyaunits/SKILL.md` for local skill registration in Vibe-style runtimes
+
+Reference: [Mistral Agents & Skills](https://docs.mistral.ai/mistral-vibe/agents-skills)
+
+## Search/assistant indexing
+
+- `robots.txt` for crawler allow + sitemap location
+- `sitemap.xml` with primary Freya URLs
+- Open Graph, Twitter, canonical, robots, and JSON-LD metadata in top pages
+- `llms.txt` for AI crawler/service discovery hints
+
 ## Source
 
 Primary source app evolves in `qbitOS/uvspeed` and mirrored deploy packaging is

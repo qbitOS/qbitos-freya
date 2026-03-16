@@ -1,7 +1,9 @@
 {
   "name": "FreyaUnits",
   "short_name": "Freya",
-  "start_url": "/",
+  "description": "FreyaUnits by qbitOS: precision conversion, scientific computing, terminal workflows, and HexCast dither tooling.",
+  "start_url": "/freya-landing.html",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#050810",
   "theme_color": "#050810",

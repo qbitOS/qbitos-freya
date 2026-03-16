@@ -1,0 +1,20 @@
+# FreyaUnits (qbitOS)
+
+FreyaUnits is a browser-native utility surface for precision conversion, scientific calculator workflows, terminal command lanes, and HexCast dither tooling.
+
+## Canonical URLs
+
+- https://freya.qbitos.ai/
+- https://freya.qbitos.ai/freya-landing.html
+- https://freya.qbitos.ai/freya-units.html
+- https://freya.qbitos.ai/freya-terminal.html
+
+## Repository
+
+- https://github.com/qbitOS/qbitos-freya
+
+## CLI Surfaces
+
+- `uv run python tools/freya-math-cli.py`
+- `uv run python tools/freya-hexcast-cli.py`
+
