@@ -1,0 +1,2 @@
+Solve and verify: Convert 474,000,000 TB/day at $400 per TB, compute 20% and 2% slices, show formulas, output JSON fields {total_usd_per_day, slice20_usd, slice2_usd, assumptions, final_answer}. Then provide one-line PASS/FAIL reasoning quality score (0-100).
+

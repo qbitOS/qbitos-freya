@@ -59,6 +59,14 @@ Reference: [Mistral Agents & Skills](https://docs.mistral.ai/mistral-vibe/agents
 - Open Graph, Twitter, canonical, robots, and JSON-LD metadata in top pages
 - `llms.txt` for AI crawler/service discovery hints
 
+## Benchmark evidence pack
+
+- `BENCHMARK.md` — verdict policy and pass criteria
+- `bench/stock-prompt.txt` — fixed benchmark prompt
+- `bench/result-schema.json` — machine-checkable run schema
+- `bench/results.jsonl` — append-only run log
+- `bench/RUNBOOK.md` — execution and publication checklist
+
 ## Source
 
 Primary source app evolves in `qbitOS/uvspeed` and mirrored deploy packaging is

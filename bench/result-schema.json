@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FreyaUnitsBenchResult",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "provider",
+    "model",
+    "commit_sha",
+    "site_surface",
+    "prompt",
+    "generation",
+    "latency_ms",
+    "verdict",
+    "output"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "commit_sha": {
+      "type": "string",
+      "minLength": 7
+    },
+    "site_surface": {
+      "type": "string",
+      "enum": ["freya-landing", "freya-units", "freya-terminal", "other"]
+    },
+    "prompt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generation": {
+      "type": "object",
+      "required": ["temperature", "top_p", "max_tokens"],
+      "properties": {
+        "temperature": { "type": "number" },
+        "top_p": { "type": "number" },
+        "max_tokens": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "latency_ms": {
+      "type": "object",
+      "required": ["p50", "p95"],
+      "properties": {
+        "p50": { "type": "number", "minimum": 0 },
+        "p95": { "type": "number", "minimum": 0 }
+      }
+    },
+    "cost_per_1m_tokens_usd": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "schema_valid": {
+      "type": "boolean"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    },
+    "notes": {
+      "type": "string"
+    },
+    "output": {
+      "type": "object",
+      "required": [
+        "total_usd_per_day",
+        "slice20_usd",
+        "slice2_usd",
+        "assumptions",
+        "final_answer",
+        "quality_score_0_100"
+      ],
+      "properties": {
+        "total_usd_per_day": { "type": ["number", "string"] },
+        "slice20_usd": { "type": ["number", "string"] },
+        "slice2_usd": { "type": ["number", "string"] },
+        "assumptions": { "type": ["array", "string"] },
+        "final_answer": { "type": "string" },
+        "quality_score_0_100": { "type": ["number", "string"] }
+      }
+    },
+    "raw_output": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}
+

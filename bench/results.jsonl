@@ -1,0 +1,2 @@
+{"timestamp":"2026-03-16T00:00:00Z","provider":"template","model":"template-model","commit_sha":"0c89dff","site_surface":"freya-units","prompt":"See bench/stock-prompt.txt","generation":{"temperature":0,"top_p":1,"max_tokens":700},"latency_ms":{"p50":0,"p95":0},"cost_per_1m_tokens_usd":null,"schema_valid":false,"verdict":"FAIL","notes":"Template entry. Replace with real run.","output":{"total_usd_per_day":"N/A","slice20_usd":"N/A","slice2_usd":"N/A","assumptions":[],"final_answer":"N/A","quality_score_0_100":"N/A"},"raw_output":""}
+
