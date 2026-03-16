@@ -164,6 +164,12 @@ nu scripts/prod-ready.nu
 
 # Full live verification (DNS/TLS/API/auth):
 PROD_DRY_RUN=0 FREYA_ERIKA_API_KEY="YOUR_KEY" nu scripts/prod-ready.nu
+
+# Full live verification with strict IPv6 AAAA requirement (default):
+PROD_DRY_RUN=0 PROD_REQUIRE_AAAA=1 FREYA_ERIKA_API_KEY="YOUR_KEY" nu scripts/prod-ready.nu
+
+# If testing local-only or IPv4-only staging:
+PROD_DRY_RUN=0 PROD_REQUIRE_AAAA=0 FREYA_ERIKA_API_KEY="YOUR_KEY" nu scripts/prod-ready.nu
 ```
 
 Notes:
@@ -173,6 +179,15 @@ Notes:
 - If you use Nginx, symlink `deploy/nginx/erika.qbitos.ai.conf` into `sites-enabled` and reload Nginx.
 - `GET /api/v1/system/integration` reports DAC/Iron Line/Quantum Gutter Prefix/Steno/Preflight flags.
 - `POST /api/v1/freya/run` is whitelist-only and API-key protected (no arbitrary shell execution).
+- `scripts/prod-ready.nu` checks AAAA (IPv6) by default in live mode.
+
+IPv6 AAAA go-live checklist:
+
+- Add DNS `AAAA` for `erika.qbitos.ai` to your server IPv6 address.
+- Keep IPv4 `A` record too for dual-stack reachability.
+- Nginx config already includes IPv6 listeners (`listen [::]:80`, `listen [::]:443`).
+- Open firewall for TCP `80/443` on IPv6.
+- Re-run: `PROD_DRY_RUN=0 PROD_REQUIRE_AAAA=1 FREYA_ERIKA_API_KEY="YOUR_KEY" nu scripts/prod-ready.nu`
 
 ## Cost model (once live)
 

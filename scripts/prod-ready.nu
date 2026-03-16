@@ -24,10 +24,12 @@ let domain = ($domain_raw | split row ':' | get 0)
 let api_key = ($env.FREYA_ERIKA_API_KEY? | default ($env.CODEX_API_KEY? | default ""))
 let env_file = ($env.PROD_ENV_FILE? | default "/etc/qbitos/freya-codex.env")
 let dry_run = (($env.PROD_DRY_RUN? | default "1") == "1")
+let require_aaaa = (($env.PROD_REQUIRE_AAAA? | default "1") == "1")
 
 print $"[prod] base=($base)"
 print $"[prod] domain=($domain)"
 print $"[prod] dry_run=($dry_run)"
+print $"[prod] require_aaaa=($require_aaaa)"
 
 run_check "freya compile" "uv run python -m py_compile ./freya"
 run_check "codex api compile" "uv run python -m py_compile ./codex_api.py"
@@ -51,8 +53,18 @@ if $dry_run {
     print "  FAIL: expected server env path set (advisory)"
     $env.failed = ($env.failed | append "expected server env path set (advisory)")
   }
+  if $require_aaaa {
+    print "  WARN: AAAA required in live mode (advisory)"
+  } else {
+    print "  PASS: AAAA requirement disabled for live mode"
+  }
 } else {
   run_check "dns resolves production domain" $"bash -lc 'nslookup ($domain) >/dev/null'"
+  if $require_aaaa {
+    run_check "dns has AAAA record (IPv6)" $"bash -lc 'dig +short AAAA ($domain) | rg -q \":\"'"
+  } else {
+    print "  WARN: skipping AAAA check (PROD_REQUIRE_AAAA=0)"
+  }
   run_check "https health endpoint" $"bash -lc 'curl -fsS \"($base)/health\" >/dev/null'"
   run_check "integration endpoint" $"bash -lc 'curl -fsS \"($base)/api/v1/system/integration\" >/dev/null'"
   run_check "plans endpoint" $"bash -lc 'curl -fsS \"($base)/api/v1/pay/plans\" >/dev/null'"
