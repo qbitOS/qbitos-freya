@@ -48,6 +48,10 @@ uv run python tools/freya-hexcast-cli.py batch
 ./freya telemetry --input bench/telemetry-sample.jsonl --input-format jsonl --phase-meco-sec 160 --phase-seco-sec 510 --jsonl
 ./freya telemetry-validate --input bench/telemetry-sample.jsonl --input-format jsonl --max-q-kpa 45 --max-accel-g 6 --min-twr-powered 1.1
 ./freya telemetry-compare --actual bench/telemetry-run-a.jsonl --target bench/telemetry-run-b.jsonl --format jsonl
+./freya market convert --amount 100 --from USD --to EUR
+./freya market convert --amount 0.25 --from BTC --to USD
+./freya market quote --symbol AAPL --market stock
+./freya market quote --symbol ETH --market crypto
 ./freya quantum run --qubits 2 --program "h 0; cx 0 1; measure" --shots 2048
 ./freya chunk list
 ./freya chunk run --id models.doctor

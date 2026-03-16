@@ -23,6 +23,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -116,6 +117,167 @@ def _get_json(url: str, headers: dict | None = None, timeout: int = 30) -> dict:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         raw = resp.read().decode("utf-8")
         return json.loads(raw) if raw else {}
+
+
+def _get_text(url: str, headers: dict | None = None, timeout: int = 30) -> str:
+    req_headers = {}
+    if headers:
+        req_headers.update(headers)
+    req = urllib.request.Request(url, headers=req_headers, method="GET")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode("utf-8")
+
+
+def _market_convert(amount: float, base: str, quote: str) -> dict:
+    base_u = base.upper()
+    quote_u = quote.upper()
+    crypto = {"BTC", "ETH", "SOL", "USDT", "USDC"}
+    fiat_fallback_usd = {
+        "USD": 1.0,
+        "EUR": 0.93,
+        "GBP": 0.79,
+        "JPY": 149.0,
+        "CAD": 1.36,
+        "AUD": 1.52,
+        "CHF": 0.89,
+    }
+    crypto_fallback_usd = {"BTC": 65000.0, "ETH": 3200.0, "SOL": 145.0, "USDT": 1.0, "USDC": 1.0}
+
+    # Fiat lane via Frankfurter.
+    if base_u not in crypto and quote_u not in crypto:
+        try:
+            q = urllib.parse.urlencode({"amount": amount, "from": base_u, "to": quote_u})
+            data = _get_json(f"https://api.frankfurter.app/latest?{q}")
+            rate = float(data["rates"][quote_u]) / max(1e-12, amount)
+            converted = float(data["rates"][quote_u])
+            return {
+                "kind": "fiat",
+                "base": base_u,
+                "quote": quote_u,
+                "amount": amount,
+                "rate": rate,
+                "converted": converted,
+                "source": "frankfurter",
+            }
+        except Exception:  # noqa: BLE001
+            b = fiat_fallback_usd.get(base_u)
+            qv = fiat_fallback_usd.get(quote_u)
+            if b is None or qv is None:
+                raise ValueError(f"unsupported fiat pair fallback: {base_u}/{quote_u}")
+            usd = amount / b
+            converted = usd * qv
+            return {
+                "kind": "fiat",
+                "base": base_u,
+                "quote": quote_u,
+                "amount": amount,
+                "rate": converted / max(1e-12, amount),
+                "converted": converted,
+                "source": "fallback-table",
+            }
+
+    # Crypto lane via CoinGecko.
+    try:
+        symbol_to_id = {"BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "USDT": "tether", "USDC": "usd-coin"}
+        ids = []
+        if base_u in symbol_to_id:
+            ids.append(symbol_to_id[base_u])
+        if quote_u in symbol_to_id:
+            ids.append(symbol_to_id[quote_u])
+        qv = "usd" if quote_u in crypto else quote_u.lower()
+        params = urllib.parse.urlencode({"ids": ",".join(sorted(set(ids))), "vs_currencies": qv if quote_u in crypto else f"usd,{quote_u.lower()}"})
+        data = _get_json(f"https://api.coingecko.com/api/v3/simple/price?{params}")
+        if base_u in crypto and quote_u in crypto:
+            b_usd = float(data[symbol_to_id[base_u]]["usd"])
+            q_usd = float(data[symbol_to_id[quote_u]]["usd"])
+            rate = b_usd / max(1e-12, q_usd)
+            converted = amount * rate
+        elif base_u in crypto:
+            b_usd = float(data[symbol_to_id[base_u]]["usd"])
+            if quote_u == "USD":
+                rate = b_usd
+            else:
+                fx = _market_convert(1.0, "USD", quote_u)
+                rate = b_usd * float(fx["converted"])
+            converted = amount * rate
+        else:
+            # fiat -> crypto
+            q_id = symbol_to_id[quote_u]
+            q_usd = float(data[q_id]["usd"])
+            usd_amount = amount if base_u == "USD" else float(_market_convert(amount, base_u, "USD")["converted"])
+            converted = usd_amount / max(1e-12, q_usd)
+            rate = converted / max(1e-12, amount)
+        return {
+            "kind": "crypto",
+            "base": base_u,
+            "quote": quote_u,
+            "amount": amount,
+            "rate": rate,
+            "converted": converted,
+            "source": "coingecko+fx",
+        }
+    except Exception:  # noqa: BLE001
+        def usd_price(sym: str) -> float:
+            if sym in crypto:
+                return crypto_fallback_usd[sym]
+            if sym in fiat_fallback_usd:
+                return 1.0 / fiat_fallback_usd[sym]
+            raise ValueError(f"unsupported symbol for fallback: {sym}")
+        b_usd = usd_price(base_u)
+        q_usd = usd_price(quote_u)
+        rate = b_usd / max(1e-12, q_usd)
+        return {
+            "kind": "crypto",
+            "base": base_u,
+            "quote": quote_u,
+            "amount": amount,
+            "rate": rate,
+            "converted": amount * rate,
+            "source": "fallback-table",
+        }
+
+
+def _market_quote(symbol: str, market: str) -> dict:
+    sym = symbol.strip().upper()
+    mk = market.strip().lower()
+    if mk == "stock":
+        try:
+            stooq_symbol = sym.lower() if "." in sym else f"{sym.lower()}.us"
+            raw = _get_text(f"https://stooq.com/q/l/?s={stooq_symbol}&i=d")
+            lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+            if len(lines) >= 2:
+                # Symbol,Date,Time,Open,High,Low,Close,Volume
+                cols = [c.strip() for c in lines[1].split(",")]
+                return {
+                    "market": "stock",
+                    "symbol": sym,
+                    "price": float(cols[6]),
+                    "open": float(cols[3]),
+                    "high": float(cols[4]),
+                    "low": float(cols[5]),
+                    "volume": cols[7],
+                    "source": "stooq",
+                }
+        except Exception:  # noqa: BLE001
+            pass
+        fallback = {"AAPL": 210.0, "MSFT": 420.0, "NVDA": 900.0, "TSLA": 190.0}
+        if sym not in fallback:
+            raise ValueError(f"unsupported stock fallback symbol: {sym}")
+        return {"market": "stock", "symbol": sym, "price": fallback[sym], "source": "fallback-table"}
+
+    # crypto quote
+    symbol_to_id = {"BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "USDT": "tether", "USDC": "usd-coin"}
+    if sym not in symbol_to_id:
+        raise ValueError(f"unsupported crypto symbol: {sym}")
+    try:
+        data = _get_json(
+            "https://api.coingecko.com/api/v3/simple/price?"
+            + urllib.parse.urlencode({"ids": symbol_to_id[sym], "vs_currencies": "usd"})
+        )
+        return {"market": "crypto", "symbol": sym, "priceUsd": float(data[symbol_to_id[sym]]["usd"]), "source": "coingecko"}
+    except Exception:  # noqa: BLE001
+        fallback = {"BTC": 65000.0, "ETH": 3200.0, "SOL": 145.0, "USDT": 1.0, "USDC": 1.0}
+        return {"market": "crypto", "symbol": sym, "priceUsd": fallback[sym], "source": "fallback-table"}
 
 
 def _resolve_model(backend: str, model: str | None, family: str | None) -> str:
@@ -1656,6 +1818,16 @@ def main() -> int:
         help="Backend inventory scope (default: all)",
     )
 
+    market = sub.add_parser("market", help="Fiat/crypto conversion and stock/crypto quotes")
+    market_sub = market.add_subparsers(dest="market_cmd", required=True)
+    market_convert = market_sub.add_parser("convert", help="Convert between fiat/crypto symbols")
+    market_convert.add_argument("--amount", type=float, required=True)
+    market_convert.add_argument("--from", dest="from_symbol", required=True, help="Base symbol, e.g. USD or BTC")
+    market_convert.add_argument("--to", dest="to_symbol", required=True, help="Quote symbol, e.g. EUR or ETH")
+    market_quote = market_sub.add_parser("quote", help="Get quote for stock or crypto symbol")
+    market_quote.add_argument("--symbol", required=True, help="Ticker or crypto symbol, e.g. AAPL or BTC")
+    market_quote.add_argument("--market", choices=["stock", "crypto"], default="stock")
+
     telemetry = sub.add_parser("telemetry", help="Live launch-style telemetry calculations")
     telemetry.add_argument("--duration-sec", type=float, default=60.0)
     telemetry.add_argument("--step-sec", type=float, default=1.0)
@@ -1808,6 +1980,27 @@ def main() -> int:
     if args.cmd == "models":
         print(json.dumps(models_inventory(args.backend), indent=2))
         return 0
+    if args.cmd == "market":
+        try:
+            if args.market_cmd == "convert":
+                print(
+                    json.dumps(
+                        _market_convert(
+                            amount=float(args.amount),
+                            base=str(args.from_symbol),
+                            quote=str(args.to_symbol),
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.market_cmd == "quote":
+                print(json.dumps(_market_quote(symbol=str(args.symbol), market=str(args.market)), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
     if args.cmd == "telemetry":
         try:
             if args.input:

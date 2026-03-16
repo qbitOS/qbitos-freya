@@ -983,6 +983,22 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
                         <label class="convert-label">Tag / note</label>
                         <input id="ingredient-note" type="text" placeholder="optional note">
                     </div>
+                    <div>
+                        <label class="convert-label">On-hand stock</label>
+                        <input id="ingredient-onhand" type="number" step="any" value="0">
+                    </div>
+                    <div>
+                        <label class="convert-label">Par stock</label>
+                        <input id="ingredient-par" type="number" step="any" value="0">
+                    </div>
+                    <div>
+                        <label class="convert-label">Usage / day</label>
+                        <input id="ingredient-usage-day" type="number" step="any" value="0">
+                    </div>
+                    <div>
+                        <label class="convert-label">Cost / unit</label>
+                        <input id="ingredient-cost" type="number" step="any" value="0">
+                    </div>
                 </div>
                 <div class="quick-row" style="margin-top:10px;">
                     <button class="quick-btn" id="ingredient-add">Add Ingredient</button>
@@ -1020,6 +1036,14 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
                     <div>
                         <label class="convert-label">Batch Factor</label>
                         <input id="recipe-factor" type="text" value="3.00x" readonly>
+                    </div>
+                    <div>
+                        <label class="convert-label">Service Days</label>
+                        <input id="recipe-service-days" type="number" step="any" value="7">
+                    </div>
+                    <div>
+                        <label class="convert-label">Safety Stock %</label>
+                        <input id="recipe-safety-pct" type="number" step="any" value="10">
                     </div>
                 </div>
                 <div class="quick-row" style="margin-top:10px;">
@@ -2104,6 +2128,10 @@ const ingredientProteinEl = document.getElementById('ingredient-protein');
 const ingredientCarbsEl = document.getElementById('ingredient-carbs');
 const ingredientFatEl = document.getElementById('ingredient-fat');
 const ingredientNoteEl = document.getElementById('ingredient-note');
+const ingredientOnHandEl = document.getElementById('ingredient-onhand');
+const ingredientParEl = document.getElementById('ingredient-par');
+const ingredientUsageDayEl = document.getElementById('ingredient-usage-day');
+const ingredientCostEl = document.getElementById('ingredient-cost');
 const ingredientAddBtn = document.getElementById('ingredient-add');
 const ingredientCopyBtn = document.getElementById('ingredient-copy');
 const ingredientClearBtn = document.getElementById('ingredient-clear');
@@ -2114,6 +2142,8 @@ const recipeNameEl = document.getElementById('recipe-name');
 const recipeBaseServingsEl = document.getElementById('recipe-base-servings');
 const recipeTargetServingsEl = document.getElementById('recipe-target-servings');
 const recipeFactorEl = document.getElementById('recipe-factor');
+const recipeServiceDaysEl = document.getElementById('recipe-service-days');
+const recipeSafetyPctEl = document.getElementById('recipe-safety-pct');
 const recipeLoadLiveBtn = document.getElementById('recipe-load-live');
 const recipeCalcBatchBtn = document.getElementById('recipe-calc-batch');
 const recipeCopyBatchBtn = document.getElementById('recipe-copy-batch');
@@ -3025,6 +3055,10 @@ function restoreIngredientList(){
                     carbs: Number(x.carbs || 0),
                     fat: Number(x.fat || 0),
                     note: String(x.note || ''),
+                    onHand: Number(x.onHand || 0),
+                    par: Number(x.par || 0),
+                    usageDay: Number(x.usageDay || 0),
+                    cost: Number(x.cost || 0),
                 }))
                 .slice(0, 120);
         }
@@ -3036,13 +3070,22 @@ function ingredientTotals(){
         acc.protein += it.qty * it.protein;
         acc.carbs += it.qty * it.carbs;
         acc.fat += it.qty * it.fat;
+        acc.cost += it.qty * it.cost;
+        const reorderQty = Math.max(0, (it.par || 0) - (it.onHand || 0));
+        acc.reorderCost += reorderQty * (it.cost || 0);
+        acc.reorderItems += reorderQty > 0 ? 1 : 0;
         return acc;
-    }, {kcal:0, protein:0, carbs:0, fat:0});
+    }, {kcal:0, protein:0, carbs:0, fat:0, cost:0, reorderCost:0, reorderItems:0});
 }
 function renderIngredientOutputs(){
     if(ingredientListOutputEl){
         ingredientListOutputEl.textContent = ingredientLiveList.length
-            ? ingredientLiveList.map((it, i)=>`${i+1}. ${it.name} — ${it.qty} ${it.unit} | kcal/u ${it.kcal} | P/C/F ${it.protein}/${it.carbs}/${it.fat}${it.note ? ` | ${it.note}` : ''}`).join('\n')
+            ? ingredientLiveList.map((it, i)=>{
+                const reorderQty = Math.max(0, (it.par || 0) - (it.onHand || 0));
+                const daysLeft = (it.usageDay || 0) > 0 ? ((it.onHand || 0) / it.usageDay) : Infinity;
+                const daysText = Number.isFinite(daysLeft) ? `${daysLeft.toFixed(1)}d left` : 'usage n/a';
+                return `${i+1}. ${it.name} — ${it.qty} ${it.unit} | kcal/u ${it.kcal} | P/C/F ${it.protein}/${it.carbs}/${it.fat} | stock ${it.onHand}/${it.par} ${it.unit} | reorder ${reorderQty.toFixed(2)} ${it.unit} | ${daysText}${it.note ? ` | ${it.note}` : ''}`;
+            }).join('\n')
             : 'No ingredients yet.';
     }
     if(ingredientAnalysisOutputEl){
@@ -3052,7 +3095,10 @@ function renderIngredientOutputs(){
 total kcal: ${t.kcal.toFixed(2)}
 protein total (g): ${t.protein.toFixed(2)}
 carbs total (g): ${t.carbs.toFixed(2)}
-fat total (g): ${t.fat.toFixed(2)}`;
+fat total (g): ${t.fat.toFixed(2)}
+ingredient cost total: $${t.cost.toFixed(2)}
+reorder candidates: ${t.reorderItems}
+reorder cost (to par): $${t.reorderCost.toFixed(2)}`;
     }
 }
 function loadRecipeItemsFromLive(){
@@ -3062,6 +3108,8 @@ function renderRecipeBatch(){
     const base = Math.max(0.0001, Number(recipeBaseServingsEl?.value || 1));
     const target = Math.max(0.0001, Number(recipeTargetServingsEl?.value || 1));
     const factor = target / base;
+    const serviceDays = Math.max(1, Number(recipeServiceDaysEl?.value || 7));
+    const safetyPct = Math.max(0, Number(recipeSafetyPctEl?.value || 10));
     if(recipeFactorEl) recipeFactorEl.value = `${factor.toFixed(2)}x`;
     if(!recipeBatchOutputEl) return;
     if(!recipeItems.length){
@@ -3070,22 +3118,35 @@ function renderRecipeBatch(){
     }
     const name = (recipeNameEl?.value || '').trim() || 'Freya Batch Recipe';
     let totalKcal = 0;
+    let totalCost = 0;
+    let reorderCost = 0;
     const lines = recipeItems.map((it, idx)=>{
         const scaledQty = it.qty * factor;
         const itemKcal = scaledQty * it.kcal;
+        const itemCost = scaledQty * (it.cost || 0);
+        const perDayNeed = Math.max(0, scaledQty);
+        const periodNeed = perDayNeed * serviceDays * (1 + (safetyPct / 100));
+        const reorderQty = Math.max(0, periodNeed - (it.onHand || 0));
+        const itemReorderCost = reorderQty * (it.cost || 0);
         totalKcal += itemKcal;
-        return `${idx+1}. ${it.name}: ${scaledQty.toFixed(3)} ${it.unit} (kcal ${itemKcal.toFixed(2)})`;
+        totalCost += itemCost;
+        reorderCost += itemReorderCost;
+        return `${idx+1}. ${it.name}: ${scaledQty.toFixed(3)} ${it.unit} (kcal ${itemKcal.toFixed(2)} | cost $${itemCost.toFixed(2)}) | service need ${periodNeed.toFixed(2)} ${it.unit} | on-hand ${(it.onHand||0).toFixed(2)} ${it.unit} | reorder ${reorderQty.toFixed(2)} ${it.unit}`;
     });
     recipeBatchOutputEl.textContent =
 `recipe: ${name}
 base servings: ${base}
 target servings: ${target}
 factor: ${factor.toFixed(4)}x
+service days: ${serviceDays}
+safety stock: ${safetyPct.toFixed(1)}%
 
 batch list:
 ${lines.join('\n')}
 
-batch kcal total: ${totalKcal.toFixed(2)}`;
+batch kcal total: ${totalKcal.toFixed(2)}
+batch ingredient cost: $${totalCost.toFixed(2)}
+inventory reorder cost: $${reorderCost.toFixed(2)}`;
 }
 if(ingredientAddBtn){
     ingredientAddBtn.addEventListener('click', ()=>{
@@ -3100,6 +3161,10 @@ if(ingredientAddBtn){
             carbs: Number(ingredientCarbsEl?.value || 0),
             fat: Number(ingredientFatEl?.value || 0),
             note: String(ingredientNoteEl?.value || '').trim(),
+            onHand: Number(ingredientOnHandEl?.value || 0),
+            par: Number(ingredientParEl?.value || 0),
+            usageDay: Number(ingredientUsageDayEl?.value || 0),
+            cost: Number(ingredientCostEl?.value || 0),
         };
         ingredientLiveList.push(entry);
         if(ingredientLiveList.length > 120) ingredientLiveList.shift();
@@ -3154,6 +3219,8 @@ if(recipeOpenIngredientsBtn){
 if(recipeBaseServingsEl){ recipeBaseServingsEl.addEventListener('input', renderRecipeBatch); }
 if(recipeTargetServingsEl){ recipeTargetServingsEl.addEventListener('input', renderRecipeBatch); }
 if(recipeNameEl){ recipeNameEl.addEventListener('input', renderRecipeBatch); }
+if(recipeServiceDaysEl){ recipeServiceDaysEl.addEventListener('input', renderRecipeBatch); }
+if(recipeSafetyPctEl){ recipeSafetyPctEl.addEventListener('input', renderRecipeBatch); }
 restoreIngredientList();
 renderIngredientOutputs();
 loadRecipeItemsFromLive();
