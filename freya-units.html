@@ -330,6 +330,146 @@
             color:#0f172a;
         }
         .bracelet-checklist li{margin-bottom:4px;}
+        .bracelet-wrap{cursor:zoom-in;}
+        .bracelet-hint{
+            margin-top:8px;
+            font-size:0.6875rem;
+            color:#475569;
+            font-family:var(--font-mono);
+        }
+        .watchface-grid{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+            gap:10px;
+            margin-top:10px;
+        }
+        .watchface-tags{
+            display:flex;
+            flex-wrap:wrap;
+            gap:6px;
+            margin:8px 0 10px;
+        }
+        .watchface-tag{
+            border:1px solid #94a3b8;
+            border-radius:999px;
+            background:#ffffff;
+            color:#0f172a;
+            font-family:var(--font-mono);
+            font-size:0.6875rem;
+            padding:5px 10px;
+            cursor:pointer;
+        }
+        .watchface-tag.active{
+            border-color:#0ea5e9;
+            color:#0369a1;
+            background:rgba(14,165,233,0.1);
+        }
+        .watchface-board{
+            margin-top:10px;
+            border:1px solid #cbd5e1;
+            border-radius:10px;
+            background:#ffffff;
+            padding:10px;
+            font-family:var(--font-mono);
+            font-size:0.6875rem;
+            color:#0f172a;
+            min-height:72px;
+            max-height:220px;
+            overflow:auto;
+            white-space:pre-wrap;
+        }
+        .bracelet-lab{
+            position:fixed;
+            inset:0;
+            z-index:1500;
+            background:rgba(2,6,23,0.9);
+            backdrop-filter:blur(3px);
+            display:none;
+        }
+        .bracelet-lab.open{display:block;}
+        .bracelet-lab-inner{
+            position:absolute;
+            inset:14px;
+            border-radius:14px;
+            border:1px solid rgba(148,163,184,0.35);
+            background:linear-gradient(180deg,rgba(248,250,252,0.97) 0%,rgba(238,242,255,0.97) 100%);
+            overflow:hidden;
+            display:grid;
+            grid-template-columns:minmax(260px,320px) 1fr;
+        }
+        .bracelet-lab-side{
+            border-right:1px solid rgba(100,116,139,0.25);
+            padding:12px;
+            overflow:auto;
+        }
+        .bracelet-lab-title{
+            font-size:0.9rem;
+            font-weight:700;
+            color:#0f172a;
+            margin-bottom:6px;
+        }
+        .bracelet-lab-sub{
+            font-size:0.75rem;
+            color:#334155;
+            line-height:1.45;
+            margin-bottom:10px;
+        }
+        .bracelet-lab-actions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+        .bracelet-lab-btn{
+            border:1px solid #94a3b8;
+            background:#ffffff;
+            color:#0f172a;
+            border-radius:8px;
+            padding:6px 10px;
+            font-family:var(--font-mono);
+            font-size:0.6875rem;
+            cursor:pointer;
+        }
+        .bracelet-lab-btn:hover{border-color:#0ea5e9;color:#0369a1;}
+        .bracelet-lab-metrics{
+            background:rgba(255,255,255,0.72);
+            border:1px solid rgba(100,116,139,0.22);
+            border-radius:10px;
+            padding:10px;
+            font-family:var(--font-mono);
+            font-size:0.6875rem;
+            color:#0f172a;
+            line-height:1.55;
+            white-space:pre-wrap;
+        }
+        .bracelet-lab-points{
+            margin-top:10px;
+            background:rgba(255,255,255,0.72);
+            border:1px solid rgba(100,116,139,0.22);
+            border-radius:10px;
+            padding:10px;
+            font-family:var(--font-mono);
+            font-size:0.6875rem;
+            color:#0f172a;
+            max-height:38vh;
+            overflow:auto;
+            white-space:pre-wrap;
+        }
+        .bracelet-lab-main{
+            position:relative;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:12px;
+        }
+        #bracelet-lab-canvas{
+            width:100%;
+            height:100%;
+            border-radius:12px;
+            background:transparent;
+            touch-action:none;
+            cursor:crosshair;
+        }
+        @media(max-width:900px){
+            .bracelet-lab-inner{grid-template-columns:1fr;grid-template-rows:auto 1fr;}
+            .bracelet-lab-side{border-right:none;border-bottom:1px solid rgba(100,116,139,0.25);}
+            .bracelet-lab-main{min-height:54vh;}
+        }
         canvas{display:block;width:100%;border-radius:var(--radius-sm);}
 
         /* Celestial chart */
@@ -752,6 +892,7 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
                             <div class="scale-readout-main" id="bracelet-readout-main">Ready — touch/drag vertically like camera zoom.</div>
                             <div class="scale-readout-meta" id="bracelet-readout-meta">OLED mode: vertical precision lock on nearest unit and decade.</div>
                         </div>
+                        <div class="bracelet-hint">Tap the bracelet scale to open Fullscreen Bracelet Lab (pinch/zoom, multipoint tracking, per-pixel ruler).</div>
                         <div class="canvas-wrap" style="padding:10px;margin-top:10px;">
                             <div style="font-size:0.6875rem;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px;">Freya Launch Fork + Wearable Integration Plan (pre-flight)</div>
                             <ul class="bracelet-checklist" id="bracelet-preflight-checklist">
@@ -767,6 +908,69 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+            <div class="card card-light">
+                <div class="card-title"><span class="icon">⌚</span> Watch Face Variations + Collaboration Submissions</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);">
+                    Collect custom watch-face variants for bracelet deployment: style lanes, color systems, marker density, and collaborator notes.
+                </div>
+                <div class="watchface-tags" id="watchface-style-tags">
+                    <button class="watchface-tag active" data-style="oled-minimal">OLED Minimal</button>
+                    <button class="watchface-tag" data-style="retro-hud">Retro HUD</button>
+                    <button class="watchface-tag" data-style="medical-precision">Medical Precision</button>
+                    <button class="watchface-tag" data-style="astro-map">Astro Map</button>
+                    <button class="watchface-tag" data-style="sport-radar">Sport Radar</button>
+                    <button class="watchface-tag" data-style="glass-micro">Glass Micro</button>
+                </div>
+                <div class="watchface-grid">
+                    <div>
+                        <label class="convert-label">Submission Name</label>
+                        <input id="watchface-name" type="text" placeholder="e.g. Freya Halo v1">
+                    </div>
+                    <div>
+                        <label class="convert-label">Collaborator / Team</label>
+                        <input id="watchface-collab" type="text" placeholder="e.g. qbitOS design lab">
+                    </div>
+                    <div>
+                        <label class="convert-label">Palette / Theme</label>
+                        <input id="watchface-palette" type="text" placeholder="e.g. cyan/indigo/oled black">
+                    </div>
+                    <div>
+                        <label class="convert-label">Marker Mode</label>
+                        <select id="watchface-markers">
+                            <option value="major-only">Major decades only</option>
+                            <option value="major+minor">Major + minor marks</option>
+                            <option value="full-grid">Full logarithmic grid</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="convert-label" style="margin-top:10px;display:block;">Notes / Submission Brief</label>
+                <textarea id="watchface-notes" class="calc-input" style="min-height:80px;" placeholder="Describe visual direction, accessibility goals, and measurement-readout intent."></textarea>
+                <div class="quick-row" style="margin-top:10px;">
+                    <button class="quick-btn" id="watchface-add-submission">Add Submission</button>
+                    <button class="quick-btn" id="watchface-copy-json">Copy JSON</button>
+                    <button class="quick-btn" id="watchface-clear-board">Clear Board</button>
+                </div>
+                <div class="watchface-board" id="watchface-board">No submissions yet. Add watch-face variants to start the collaboration board.</div>
+            </div>
+        </div>
+
+        <div class="bracelet-lab" id="bracelet-lab">
+            <div class="bracelet-lab-inner">
+                <aside class="bracelet-lab-side">
+                    <div class="bracelet-lab-title">Bracelet Fullscreen Test Lab</div>
+                    <div class="bracelet-lab-sub">Pinch to zoom range, drag to track, tap to place points, and inspect pixel-accurate ruler scaling with live magnifier bubble.</div>
+                    <div class="bracelet-lab-actions">
+                        <button class="bracelet-lab-btn" id="bracelet-lab-close">Close</button>
+                        <button class="bracelet-lab-btn" id="bracelet-lab-reset">Reset Zoom</button>
+                        <button class="bracelet-lab-btn" id="bracelet-lab-clear">Clear Points</button>
+                    </div>
+                    <div class="bracelet-lab-metrics" id="bracelet-lab-metrics">Metrics booting...</div>
+                    <div class="bracelet-lab-points" id="bracelet-lab-points">Points: none</div>
+                </aside>
+                <div class="bracelet-lab-main">
+                    <canvas id="bracelet-lab-canvas" width="1200" height="700"></canvas>
                 </div>
             </div>
         </div>
@@ -1701,6 +1905,23 @@ const scaleReadoutMain = document.getElementById('scale-readout-main');
 const scaleReadoutMeta = document.getElementById('scale-readout-meta');
 const braceletReadoutMain = document.getElementById('bracelet-readout-main');
 const braceletReadoutMeta = document.getElementById('bracelet-readout-meta');
+const braceletLabEl = document.getElementById('bracelet-lab');
+const braceletLabCanvas = document.getElementById('bracelet-lab-canvas');
+const braceletLabMetricsEl = document.getElementById('bracelet-lab-metrics');
+const braceletLabPointsEl = document.getElementById('bracelet-lab-points');
+const watchfaceStyleTags = Array.from(document.querySelectorAll('#watchface-style-tags .watchface-tag'));
+const watchfaceNameEl = document.getElementById('watchface-name');
+const watchfaceCollabEl = document.getElementById('watchface-collab');
+const watchfacePaletteEl = document.getElementById('watchface-palette');
+const watchfaceMarkersEl = document.getElementById('watchface-markers');
+const watchfaceNotesEl = document.getElementById('watchface-notes');
+const watchfaceBoardEl = document.getElementById('watchface-board');
+const watchfaceAddBtn = document.getElementById('watchface-add-submission');
+const watchfaceCopyBtn = document.getElementById('watchface-copy-json');
+const watchfaceClearBtn = document.getElementById('watchface-clear-board');
+let watchfaceStyle = 'oled-minimal';
+let watchfaceBoard = [];
+const WATCHFACE_BOARD_KEY = 'freya-watchface-board-v1';
 function setScaleReadout(log10Value, mode){
     const units = unitsForCat('length');
     const meters = Math.pow(10, log10Value);
@@ -1932,6 +2153,312 @@ function setupBraceletInteractions(){
             ro.observe(host);
         }
     }
+    const wrap = canvas.closest('.bracelet-wrap');
+    if(wrap && !wrap.dataset.labBound){
+        wrap.dataset.labBound = '1';
+        wrap.addEventListener('click', ()=>{
+            openBraceletLab();
+        });
+    }
+}
+const braceletLabState = {
+    open: false,
+    minLog: -35,
+    maxLog: 17,
+    zoom: 1,
+    centerLog: -8,
+    pointers: new Map(),
+    pinchStartDist: 0,
+    pinchStartZoom: 1,
+    focus: {x: 0, y: 0, log: -8},
+    points: [],
+    pointSeq: 1,
+};
+function braceletBaseLog(){
+    const units = unitsForCat('length');
+    const fromU = units[fromSel.value] || units[0];
+    const val = parseFloat(valInput.value) || 1;
+    const meters = Math.max(1e-35, val * fromU.factor);
+    return Math.log10(meters);
+}
+function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
+function labVisibleWindow(){
+    const s = braceletLabState;
+    const span = (s.maxLog - s.minLog) / clamp(s.zoom, 1, 80);
+    let lo = s.centerLog - span / 2;
+    let hi = s.centerLog + span / 2;
+    if(lo < s.minLog){ hi += (s.minLog - lo); lo = s.minLog; }
+    if(hi > s.maxLog){ lo -= (hi - s.maxLog); hi = s.maxLog; }
+    lo = clamp(lo, s.minLog, s.maxLog);
+    hi = clamp(hi, s.minLog, s.maxLog);
+    return {lo, hi, span: Math.max(1e-9, hi - lo)};
+}
+function labYForLog(log, H){
+    const {lo, hi, span} = labVisibleWindow();
+    const clampedLog = clamp(log, lo, hi);
+    const t = (clampedLog - lo) / span;
+    return Math.round((H - 24) - (t * (H - 48)));
+}
+function labLogForY(y, H){
+    const {lo, span} = labVisibleWindow();
+    const localY = clamp(y, 24, H - 24);
+    const t = 1 - ((localY - 24) / Math.max(1, (H - 48)));
+    return lo + (t * span);
+}
+function openBraceletLab(){
+    if(!braceletLabEl) return;
+    braceletLabState.open = true;
+    braceletLabState.centerLog = braceletBaseLog();
+    braceletLabState.zoom = 1;
+    braceletLabEl.classList.add('open');
+    drawBraceletLab();
+}
+function closeBraceletLab(){
+    if(!braceletLabEl) return;
+    braceletLabState.open = false;
+    braceletLabEl.classList.remove('open');
+}
+function drawBraceletLab(){
+    if(!braceletLabState.open || !braceletLabCanvas) return;
+    const sized = syncHiDpiCanvas(braceletLabCanvas);
+    if(!sized) return;
+    const ctx = sized.ctx;
+    const W = sized.W, H = sized.H;
+    ctx.clearRect(0,0,W,H);
+    const bg = ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0,'#f8fafc');
+    bg.addColorStop(1,'#eef2ff');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,W,H);
+
+    const units = unitsForCat('length');
+    const {lo, hi, span} = labVisibleWindow();
+    const decadeStep = span < 8 ? 1 : (span < 28 ? 2 : 5);
+    for(let d=Math.ceil(lo); d<=Math.floor(hi); d+=decadeStep){
+        const y = labYForLog(d, H);
+        const hue = ((d + 36) * 17) % 360;
+        const isMajor = d % 5 === 0;
+        ctx.strokeStyle = `hsla(${hue},85%,${isMajor?45:62}%,${isMajor?0.56:0.24})`;
+        ctx.lineWidth = isMajor ? 1.6 : 1;
+        ctx.beginPath();
+        ctx.moveTo(38, y);
+        ctx.lineTo(W - 42, y);
+        ctx.stroke();
+        if(isMajor){
+            ctx.fillStyle = '#334155';
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(`10^${d}`, 14, y - 2);
+        }
+    }
+    if(braceletLabState.zoom >= 3){
+        for(let d=Math.floor(lo); d<=Math.ceil(hi); d++){
+            for(let frac=1; frac<10; frac++){
+                const log = d + Math.log10(frac);
+                if(log < lo || log > hi) continue;
+                const y = labYForLog(log, H);
+                ctx.strokeStyle = 'rgba(56,189,248,0.2)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(W * 0.2, y);
+                ctx.lineTo(W * 0.8, y);
+                ctx.stroke();
+            }
+        }
+    }
+
+    units.forEach((u)=>{
+        const log = Math.log10(u.factor);
+        if(log < lo || log > hi) return;
+        const y = labYForLog(log, H);
+        const hue = ((log + 35) * 15) % 360;
+        ctx.strokeStyle = `hsla(${hue},90%,40%,0.95)`;
+        ctx.beginPath();
+        ctx.moveTo(W - 66, y);
+        ctx.lineTo(W - 16, y);
+        ctx.stroke();
+        ctx.fillStyle = '#0f172a';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(u.sym, W - 70, y + 4);
+    });
+
+    const pointer = braceletLabState.focus;
+    const focusY = clamp(pointer.y || Math.floor(H/2), 24, H - 24);
+    const focusLog = clamp(pointer.log || labLogForY(focusY, H), lo, hi);
+    const focusMeters = Math.pow(10, focusLog);
+    const prevMeters = Math.pow(10, labLogForY(clamp(focusY + 1, 24, H - 24), H));
+    const pxAcc = Math.abs(focusMeters - prevMeters);
+
+    ctx.strokeStyle = '#0ea5e9';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(0, focusY);
+    ctx.lineTo(W, focusY);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(14,165,233,0.18)';
+    ctx.fillRect(0, focusY - 2, W, 4);
+
+    braceletLabState.points.forEach((p, idx)=>{
+        const y = labYForLog(p.log, H);
+        const hue = (idx * 57) % 360;
+        ctx.fillStyle = `hsla(${hue},85%,45%,0.95)`;
+        ctx.beginPath();
+        ctx.arc(W * 0.24 + ((idx % 4) * 22), y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#0f172a';
+        ctx.font = '10px monospace';
+        ctx.fillText(String(p.id), W * 0.24 + ((idx % 4) * 22), y - 10);
+    });
+
+    const bubbleX = clamp(pointer.x || Math.floor(W * 0.52), 90, W - 90);
+    const bubbleY = focusY;
+    const r = 64;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(bubbleX, bubbleY, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255,255,255,0.34)';
+    ctx.fillRect(bubbleX - r, bubbleY - r, r * 2, r * 2);
+    for(let i=-8; i<=8; i++){
+        const y = bubbleY + i * 6;
+        ctx.strokeStyle = i===0 ? 'rgba(14,165,233,0.95)' : 'rgba(15,23,42,0.2)';
+        ctx.lineWidth = i===0 ? 1.6 : 1;
+        ctx.beginPath();
+        ctx.moveTo(bubbleX - r, y);
+        ctx.lineTo(bubbleX + r, y);
+        ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(14,165,233,0.9)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(bubbleX, bubbleY, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(14,165,233,0.14)';
+    ctx.beginPath();
+    ctx.arc(bubbleX, bubbleY, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    let nearest = units[0];
+    let nearestDiff = Infinity;
+    units.forEach((u)=>{
+        const d = Math.abs(Math.log10(u.factor) - focusLog);
+        if(d < nearestDiff){ nearest = u; nearestDiff = d; }
+    });
+    const inUnit = focusMeters / nearest.factor;
+    if(braceletLabMetricsEl){
+        braceletLabMetricsEl.textContent =
+`zoom: ${braceletLabState.zoom.toFixed(2)}x
+window: 10^${lo.toFixed(3)} .. 10^${hi.toFixed(3)}
+focus: ${fmt(inUnit)} ${nearest.sym}
+focus meters: ${fmt(focusMeters)} m (10^${focusLog.toFixed(4)})
+pixel accuracy (~1px @ focus): ${pxAcc.toExponential(5)} m
+active pointers: ${braceletLabState.pointers.size}
+markers: ${braceletLabState.points.length}`;
+    }
+    if(braceletLabPointsEl){
+        braceletLabPointsEl.textContent = braceletLabState.points.length
+            ? braceletLabState.points.map((p)=>`#${p.id} 10^${p.log.toFixed(4)}  (${fmt(Math.pow(10,p.log))} m)`).join('\n')
+            : 'Points: none';
+    }
+}
+function setupBraceletLab(){
+    if(!braceletLabCanvas || braceletLabCanvas.dataset.boundLab === '1') return;
+    braceletLabCanvas.dataset.boundLab = '1';
+    const closeBtn = document.getElementById('bracelet-lab-close');
+    const resetBtn = document.getElementById('bracelet-lab-reset');
+    const clearBtn = document.getElementById('bracelet-lab-clear');
+    if(closeBtn){ closeBtn.addEventListener('click', closeBraceletLab); }
+    if(resetBtn){
+        resetBtn.addEventListener('click', ()=>{
+            braceletLabState.zoom = 1;
+            braceletLabState.centerLog = braceletBaseLog();
+            drawBraceletLab();
+        });
+    }
+    if(clearBtn){
+        clearBtn.addEventListener('click', ()=>{
+            braceletLabState.points = [];
+            drawBraceletLab();
+        });
+    }
+    braceletLabEl?.addEventListener('click', (e)=>{
+        if(e.target === braceletLabEl) closeBraceletLab();
+    });
+    document.addEventListener('keydown', (e)=>{
+        if(e.key === 'Escape' && braceletLabState.open) closeBraceletLab();
+    });
+
+    braceletLabCanvas.addEventListener('pointerdown', (e)=>{
+        const rect = braceletLabCanvas.getBoundingClientRect();
+        const p = {x: e.clientX - rect.left, y: e.clientY - rect.top, moved: false};
+        braceletLabState.pointers.set(e.pointerId, p);
+        braceletLabState.focus = {x: p.x, y: p.y, log: labLogForY(p.y, rect.height)};
+        if(braceletLabState.pointers.size === 2){
+            const arr = Array.from(braceletLabState.pointers.values());
+            braceletLabState.pinchStartDist = Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y) || 1;
+            braceletLabState.pinchStartZoom = braceletLabState.zoom;
+        }
+        try{ braceletLabCanvas.setPointerCapture(e.pointerId); }catch(_){}
+        drawBraceletLab();
+    });
+    braceletLabCanvas.addEventListener('pointermove', (e)=>{
+        if(!braceletLabState.pointers.has(e.pointerId)) return;
+        const rect = braceletLabCanvas.getBoundingClientRect();
+        const p = braceletLabState.pointers.get(e.pointerId);
+        const nx = e.clientX - rect.left;
+        const ny = e.clientY - rect.top;
+        p.moved = p.moved || Math.hypot(nx - p.x, ny - p.y) > 5;
+        p.x = nx;
+        p.y = ny;
+        braceletLabState.focus = {x: nx, y: ny, log: labLogForY(ny, rect.height)};
+        if(braceletLabState.pointers.size === 2){
+            const arr = Array.from(braceletLabState.pointers.values());
+            const dist = Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y) || 1;
+            const ratio = dist / Math.max(1, braceletLabState.pinchStartDist);
+            braceletLabState.zoom = clamp(braceletLabState.pinchStartZoom * ratio, 1, 80);
+            braceletLabState.centerLog = labLogForY((arr[0].y + arr[1].y) / 2, rect.height);
+        } else if(braceletLabState.pointers.size === 1){
+            braceletLabState.centerLog = labLogForY(ny, rect.height);
+            const units = unitsForCat('length');
+            const fromU = units[fromSel.value] || units[0];
+            const meters = Math.pow(10, braceletLabState.focus.log);
+            const next = Math.max(1e-24, Math.min(1e120, meters / Math.max(1e-120, fromU.factor)));
+            valInput.value = Number(next.toPrecision(10)).toString();
+            convert();
+        }
+        drawBraceletLab();
+    });
+    const finishPointer = (e)=>{
+        const rect = braceletLabCanvas.getBoundingClientRect();
+        const p = braceletLabState.pointers.get(e.pointerId);
+        if(p && !p.moved){
+            const log = labLogForY(p.y, rect.height);
+            braceletLabState.points.push({id: braceletLabState.pointSeq++, log});
+            if(braceletLabState.points.length > 24) braceletLabState.points.shift();
+        }
+        braceletLabState.pointers.delete(e.pointerId);
+        drawBraceletLab();
+    };
+    braceletLabCanvas.addEventListener('pointerup', finishPointer);
+    braceletLabCanvas.addEventListener('pointercancel', finishPointer);
+    braceletLabCanvas.addEventListener('wheel', (e)=>{
+        e.preventDefault();
+        const rect = braceletLabCanvas.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const anchor = labLogForY(y, rect.height);
+        const k = e.deltaY < 0 ? 1.08 : 1/1.08;
+        braceletLabState.zoom = clamp(braceletLabState.zoom * k, 1, 80);
+        braceletLabState.centerLog = anchor;
+        braceletLabState.focus = {x: e.clientX - rect.left, y, log: anchor};
+        drawBraceletLab();
+    }, {passive:false});
+    const redraw = ()=>{ if(braceletLabState.open) drawBraceletLab(); };
+    window.addEventListener('resize', redraw, {passive:true});
+    if(window.visualViewport){
+        window.visualViewport.addEventListener('resize', redraw, {passive:true});
+    }
 }
 function setupScaleInteractions(){
     const canvas = document.getElementById('scale-canvas');
@@ -2056,6 +2583,7 @@ document.getElementById('conv-swap').addEventListener('click',()=>{
 populateSelects();
 setupScaleInteractions();
 setupBraceletInteractions();
+setupBraceletLab();
 if(laneTbEl){ laneTbEl.addEventListener('input', updateDataLane); }
 if(laneCostEl){ laneCostEl.addEventListener('input', updateDataLane); }
 if(lanePctAEl){ lanePctAEl.addEventListener('input', updateDataLane); }
@@ -2109,6 +2637,76 @@ if(braceletCopyPreflightBtn){
         }catch(_){}
     });
 }
+watchfaceStyleTags.forEach((tag)=>{
+    tag.addEventListener('click', ()=>{
+        watchfaceStyle = tag.dataset.style || 'oled-minimal';
+        watchfaceStyleTags.forEach((t)=>t.classList.remove('active'));
+        tag.classList.add('active');
+    });
+});
+function renderWatchfaceBoard(){
+    if(!watchfaceBoardEl) return;
+    if(!watchfaceBoard.length){
+        watchfaceBoardEl.textContent = 'No submissions yet. Add watch-face variants to start the collaboration board.';
+        return;
+    }
+    watchfaceBoardEl.textContent = watchfaceBoard.map((s, i)=>(
+`#${i+1} ${s.name}
+style=${s.style} | collaborator=${s.collaborator}
+palette=${s.palette} | markers=${s.markers}
+notes=${s.notes}`
+    )).join('\n\n');
+}
+function persistWatchfaceBoard(){
+    try{
+        localStorage.setItem(WATCHFACE_BOARD_KEY, JSON.stringify(watchfaceBoard));
+    }catch(_){}
+}
+function restoreWatchfaceBoard(){
+    try{
+        const raw = localStorage.getItem(WATCHFACE_BOARD_KEY);
+        if(!raw) return;
+        const parsed = JSON.parse(raw);
+        if(Array.isArray(parsed)){
+            watchfaceBoard = parsed.slice(0, 24);
+        }
+    }catch(_){}
+}
+if(watchfaceAddBtn){
+    watchfaceAddBtn.addEventListener('click', ()=>{
+        const entry = {
+            name: (watchfaceNameEl?.value || '').trim() || 'Untitled watch face',
+            collaborator: (watchfaceCollabEl?.value || '').trim() || 'unassigned',
+            style: watchfaceStyle,
+            palette: (watchfacePaletteEl?.value || '').trim() || 'default',
+            markers: watchfaceMarkersEl?.value || 'major-only',
+            notes: (watchfaceNotesEl?.value || '').trim() || 'no notes',
+            createdAt: new Date().toISOString(),
+        };
+        watchfaceBoard.unshift(entry);
+        if(watchfaceBoard.length > 24) watchfaceBoard = watchfaceBoard.slice(0, 24);
+        persistWatchfaceBoard();
+        renderWatchfaceBoard();
+    });
+}
+if(watchfaceCopyBtn){
+    watchfaceCopyBtn.addEventListener('click', async ()=>{
+        try{
+            await navigator.clipboard.writeText(JSON.stringify(watchfaceBoard, null, 2));
+            watchfaceCopyBtn.textContent = 'Copied';
+            setTimeout(()=>{ watchfaceCopyBtn.textContent = 'Copy JSON'; }, 1200);
+        }catch(_){}
+    });
+}
+if(watchfaceClearBtn){
+    watchfaceClearBtn.addEventListener('click', ()=>{
+        watchfaceBoard = [];
+        persistWatchfaceBoard();
+        renderWatchfaceBoard();
+    });
+}
+restoreWatchfaceBoard();
+renderWatchfaceBoard();
 
 /* ═══════════════════════════════════════════════════
    CALCULATOR (mathjs + KaTeX)
