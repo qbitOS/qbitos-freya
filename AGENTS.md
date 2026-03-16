@@ -27,6 +27,9 @@ This file exposes project context for agent-capable CLIs (including Mistral Vibe
 - Keep metadata and canonical URLs in sync for all user-facing pages.
 - Preserve `quantum-prefixes.js`, `qbit-dac.js`, `qbit-steno.js`, and service worker wiring.
 - For CLI docs, default commands should use `uv run python ...`.
+- Use `AI_INDEX.md` as the machine-first entrypoint.
+- Follow `IMPLEMENTATION_ORDER.md` for deterministic edit order.
+- Use `BACKEND_MATRIX.json` for backend/env/model-family routing.
 
 ## Verification Commands
 
@@ -34,5 +37,6 @@ This file exposes project context for agent-capable CLIs (including Mistral Vibe
 uv run python tools/freya-hexcast-cli.py --help
 uv run python tools/freya-hexcast-cli.py batch
 uv run python tools/freya-math-cli.py --help
+./freya models --backend all
 ```
 

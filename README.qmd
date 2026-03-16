@@ -27,6 +27,7 @@ Canonical FreyaUnits deployment surface for:
 - `freya-landing.html` — launch/showcase page for fast entry
 - `freya-units.html` — full FreyaUnits web app (uvspeed parity)
 - `freya-terminal.html` — terminal lane for `econ` and `expr` commands
+- `freya` — unified CLI (`math`, `chat`, `models`) with multi-backend routing
 - `tools/freya-math-engine.js` — reusable browser/Node math engine extension
 - `tools/freya-math-cli.py` — terminal CLI for quick data-econ + expression math
 - `tools/freya-hexcast-cli.py` — 8-bit dither CLI for terminal art + character packs
@@ -49,6 +50,9 @@ uv run python tools/freya-hexcast-cli.py batch
 
 - `AGENTS.md` at repo root for agent context/autodiscovery
 - `.vibe/skills/freyaunits/SKILL.md` for local skill registration in Vibe-style runtimes
+- `AI_INDEX.md` for machine-first entry and routing
+- `IMPLEMENTATION_ORDER.md` for deterministic implementation flow
+- `BACKEND_MATRIX.json` for backend/env/model alias mapping
 
 Reference: [Mistral Agents & Skills](https://docs.mistral.ai/mistral-vibe/agents-skills)
 
@@ -69,5 +73,5 @@ Reference: [Mistral Agents & Skills](https://docs.mistral.ai/mistral-vibe/agents
 
 ## Source
 
-Primary source app evolves in `qbitOS/uvspeed` and mirrored deploy packaging is
-published via `qbitOS/uvmis-evolution-agent`.
+Primary source app evolves in `qbitOS/uvspeed`; deploy packaging is published via
+`qbitOS/uvmis-evolution-agent` with runtime parity (no requirement to mirror every folder structure).

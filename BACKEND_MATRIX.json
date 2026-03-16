@@ -1,0 +1,101 @@
+{
+  "version": "1.0.0",
+  "defaultBackend": "auto",
+  "autoFallbackOrder": [
+    "lmstudio",
+    "ollama",
+    "ugrad",
+    "huggingface",
+    "mistral"
+  ],
+  "backends": {
+    "lmstudio": {
+      "protocol": "openai_compatible",
+      "baseUrlEnv": "LOCAL_LLM_BASE_URL",
+      "modelEnv": "LOCAL_LLM_MODEL",
+      "apiKeyEnv": "LOCAL_LLM_API_KEY",
+      "defaultBaseUrl": "http://127.0.0.1:1234/v1",
+      "notes": "Use for local LM Studio model serving."
+    },
+    "ollama": {
+      "protocol": "ollama_api",
+      "baseUrlEnv": "OLLAMA_BASE_URL",
+      "modelEnv": "OLLAMA_MODEL",
+      "defaultBaseUrl": "http://127.0.0.1:11434",
+      "notes": "Use for local Ollama models."
+    },
+    "ugrad": {
+      "protocol": "openai_compatible",
+      "baseUrlEnv": "UGRAD_MODELLAB_BASE_URL",
+      "modelEnv": "UGRAD_MODELLAB_MODEL",
+      "apiKeyEnv": "UGRAD_MODELLAB_API_KEY",
+      "notes": "Use for ugrad Model Lab gateway."
+    },
+    "huggingface": {
+      "protocol": "hf_inference_api",
+      "tokenEnv": "HF_API_TOKEN",
+      "modelEnv": "HF_MODEL",
+      "notes": "Hosted inference via Hugging Face API."
+    },
+    "mistral": {
+      "protocol": "mistral_sdk",
+      "apiKeyEnv": "MISTRAL_API_KEY",
+      "modelEnv": "MISTRAL_MODEL",
+      "notes": "Hosted inference via Mistral SDK."
+    }
+  },
+  "modelFamilyAliases": {
+    "llama2": {
+      "ollama": "llama2",
+      "huggingface": "meta-llama/Llama-2-7b-chat-hf",
+      "lmstudio": "llama-2",
+      "ugrad": "llama-2"
+    },
+    "llama3": {
+      "ollama": "llama3.1",
+      "huggingface": "meta-llama/Llama-3.1-8B-Instruct",
+      "lmstudio": "llama-3",
+      "ugrad": "llama-3"
+    },
+    "mistral": {
+      "ollama": "mistral",
+      "huggingface": "mistralai/Mistral-7B-Instruct-v0.3",
+      "lmstudio": "mistral",
+      "ugrad": "mistral",
+      "mistral": "mistral-small-latest"
+    },
+    "falcon": {
+      "ollama": "falcon",
+      "huggingface": "tiiuae/falcon-7b-instruct",
+      "lmstudio": "falcon",
+      "ugrad": "falcon"
+    },
+    "gptneo": {
+      "ollama": "gpt-neo",
+      "huggingface": "EleutherAI/gpt-neo-2.7B",
+      "lmstudio": "gpt-neo",
+      "ugrad": "gpt-neo"
+    },
+    "codellama": {
+      "ollama": "codellama",
+      "huggingface": "meta-llama/CodeLlama-7b-Instruct-hf",
+      "lmstudio": "codellama",
+      "ugrad": "codellama"
+    },
+    "vicuna": {
+      "ollama": "vicuna",
+      "huggingface": "lmsys/vicuna-7b-v1.5",
+      "lmstudio": "vicuna",
+      "ugrad": "vicuna"
+    }
+  },
+  "security": {
+    "neverCommitSecrets": true,
+    "requiredSecretEnvVars": [
+      "MISTRAL_API_KEY",
+      "HF_API_TOKEN",
+      "UGRAD_MODELLAB_API_KEY",
+      "LOCAL_LLM_API_KEY"
+    ]
+  }
+}
