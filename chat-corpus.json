@@ -6,6 +6,24 @@
   },
   "sessions": [
     {
+      "id": "2026-03-16-phase-r1-hardening",
+      "date": "2026-03-16",
+      "title": "Phase R1 hardening release",
+      "summary": [
+        "Added router scoring with persisted backend eval metrics for task routing.",
+        "Added session lifecycle command set and archived-session guard behavior.",
+        "Added plugin discovery index plus dependency resolver and agent handoff ledger.",
+        "Extended pre-audit smoke tests and pushed release commit 4d271fc."
+      ],
+      "artifacts": [
+        "freya",
+        "scripts/pre.nu",
+        "enterprise/plugin-index.json",
+        "PROGRESS.md",
+        "TIMESHEET.md"
+      ]
+    },
+    {
       "id": "2026-03-16-readiness-api-bridge",
       "date": "2026-03-16",
       "title": "Readiness and API bridge batch",

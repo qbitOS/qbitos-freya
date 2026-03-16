@@ -305,6 +305,26 @@ def _grid_svg(chart_data: dict, title: str) -> str:
     )
 
 
+def _stair_series(chart_data: dict) -> list[dict]:
+    rows = []
+    for b in chart_data.get("bodies", []):
+        if not isinstance(b, dict):
+            continue
+        try:
+            lon = float(b.get("longitude", 0.0))
+        except Exception:  # noqa: BLE001
+            lon = 0.0
+        rows.append(
+            {
+                "name": str(b.get("name", "Body")),
+                "longitude": round(lon, 4),
+                "house": int(b.get("house", 0) or 0),
+            }
+        )
+    rows.sort(key=lambda x: x["longitude"])
+    return rows
+
+
 class CodexHandler(BaseHTTPRequestHandler):
     server_version = "FreyaCodexAPI/1.0"
 
@@ -378,7 +398,7 @@ class CodexHandler(BaseHTTPRequestHandler):
             )
             return
 
-        if path in {"/api/v1/codex/chart-data", "/api/v1/codex/context", "/api/v1/codex/split-chart"}:
+        if path in {"/api/v1/codex/chart-data", "/api/v1/codex/context", "/api/v1/codex/split-chart", "/api/v1/codex/live-astrology"}:
             subject = payload.get("subject", {})
             options = payload if isinstance(payload, dict) else {}
             if not isinstance(subject, dict):
@@ -391,6 +411,23 @@ class CodexHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/v1/codex/context":
                 _json_response(self, HTTPStatus.OK, {"status": "OK", "context": _context_xml(chart_data), "chart_data": chart_data})
+                return
+            if path == "/api/v1/codex/live-astrology":
+                title = str(options.get("custom_title", "Freya Codex Live")).strip()[:40] or "Freya Codex Live"
+                _json_response(
+                    self,
+                    HTTPStatus.OK,
+                    {
+                        "status": "OK",
+                        "live_chart": {
+                            "title": title,
+                            "chart_data": chart_data,
+                            "stair_series": _stair_series(chart_data),
+                            "chart_wheel": _wheel_svg(chart_data, title),
+                            "chart_grid": _grid_svg(chart_data, title),
+                        },
+                    },
+                )
                 return
             title = str(options.get("custom_title", "Freya Codex")).strip()[:40] or "Freya Codex"
             _json_response(

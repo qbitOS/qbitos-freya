@@ -994,6 +994,28 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
                 <div class="food-output" id="codex-output">Codex Pro lane ready.</div>
             </div>
             <div class="card">
+                <div class="card-title"><span class="icon">🪜</span> Codex Stair-Step Charting + Erika Live Astrology</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;">
+                    Stair-step profile of planetary longitudes and house lanes. Fetch a live version from `erika.qbitos.ai` when API key is available.
+                </div>
+                <div class="food-grid">
+                    <div>
+                        <label class="convert-label">Erika API Base</label>
+                        <input id="codex-erika-base" type="text" value="https://erika.qbitos.ai">
+                    </div>
+                    <div>
+                        <label class="convert-label">Erika API Key</label>
+                        <input id="codex-erika-key" type="password" placeholder="X-API-Key">
+                    </div>
+                </div>
+                <div class="quick-row" style="margin-top:8px;">
+                    <button class="quick-btn" id="codex-stair-local">Stair Chart (Local)</button>
+                    <button class="quick-btn" id="codex-stair-live">Fetch Live Stair (Erika)</button>
+                </div>
+                <div id="codex-stair-chart" style="height:320px;border-radius:var(--radius-sm);overflow:hidden;margin-top:8px;"></div>
+                <div class="food-output" id="codex-stair-output">Stair chart lane ready.</div>
+            </div>
+            <div class="card">
                 <div class="card-title"><span class="icon">⊕</span> Houses — Iron Line Mapping</div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px" id="codex-houses"></div>
             </div>
@@ -1478,7 +1500,13 @@ function activateTab(tabName){
         });
     }
     if(tabName==='codex'&&typeof drawCodexChart==='function'){
-        requestAnimationFrame(()=>{drawCodexChart();buildCodexPanels();});
+        requestAnimationFrame(()=>{
+            drawCodexChart();
+            buildCodexPanels();
+            if(typeof drawCodexStairChart==='function'){
+                drawCodexStairChart(codexLastStairChartData || codexLocalChartData(),'local-sim');
+            }
+        });
     }
     if(tabName==='bracelet'&&typeof drawBraceletScale==='function'){
         requestAnimationFrame(()=>{ drawBraceletScale(); });
@@ -4763,8 +4791,126 @@ const codexAiContextBtn = document.getElementById('codex-ai-context');
 const codexSplitExportBtn = document.getElementById('codex-split-export');
 const codexExportJsonBtn = document.getElementById('codex-export-json');
 const codexCopyApiTemplateBtn = document.getElementById('codex-copy-api-template');
+const codexErikaBaseEl = document.getElementById('codex-erika-base');
+const codexErikaKeyEl = document.getElementById('codex-erika-key');
+const codexStairLocalBtn = document.getElementById('codex-stair-local');
+const codexStairLiveBtn = document.getElementById('codex-stair-live');
+const codexStairOutputEl = document.getElementById('codex-stair-output');
 const codexOutputEl = document.getElementById('codex-output');
 let codexLastExport = null;
+let codexLastStairChartData = null;
+
+function codexLocalChartData(){
+  return {
+    bodies: CELEST_BODIES.map((b)=>({name:b.name, longitude:b.lon, house:b.house})),
+    houses: IRON_HOUSES,
+    zodiac: ZODIAC,
+    gates: GATE_SYM,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function codexToStairSeries(chartData){
+  const raw = Array.isArray(chartData?.bodies) ? chartData.bodies : [];
+  const rows = raw
+    .map((b)=>({
+      name: String(b.name || 'Body'),
+      longitude: Number(b.longitude ?? b.lon ?? 0),
+      house: Number(b.house ?? 0),
+    }))
+    .filter((b)=>Number.isFinite(b.longitude))
+    .sort((a,b)=>a.longitude-b.longitude);
+  return rows;
+}
+
+function drawCodexStairChart(chartData, sourceLabel){
+  const container = document.getElementById('codex-stair-chart');
+  if(!container || typeof Plotly === 'undefined') return;
+  const rows = codexToStairSeries(chartData);
+  codexLastStairChartData = chartData;
+  if(!rows.length){
+    container.innerHTML = '<div style="padding:12px;color:var(--text-muted)">No stair-step data available.</div>';
+    return;
+  }
+  const x = rows.map((r)=>r.name);
+  const y = rows.map((r)=>r.longitude);
+  const h = rows.map((r)=>r.house || 0);
+  Plotly.newPlot(
+    container,
+    [
+      {
+        x,
+        y,
+        type:'scatter',
+        mode:'lines+markers',
+        line:{shape:'hv',color:'#7c3aed',width:2.5},
+        marker:{size:7,color:'#56d4dd'},
+        name:'Longitude°',
+      },
+      {
+        x,
+        y:h,
+        type:'scatter',
+        mode:'lines+markers',
+        line:{shape:'hv',color:'#f59e0b',width:2},
+        marker:{size:6,color:'#f59e0b'},
+        yaxis:'y2',
+        name:'House',
+      },
+    ],
+    {
+      margin:{l:44,r:44,t:34,b:48},
+      paper_bgcolor:'rgba(0,0,0,0)',
+      plot_bgcolor:'rgba(15,23,42,0.5)',
+      font:{color:'#cbd5e1',family:'monospace',size:11},
+      title:{text:`Codex Stair-Step · ${sourceLabel}`,font:{size:12,color:'#93c5fd'}},
+      xaxis:{title:'Bodies'},
+      yaxis:{title:'Longitude (°)',range:[0,360],gridcolor:'rgba(148,163,184,0.15)'},
+      yaxis2:{title:'House',overlaying:'y',side:'right',range:[0.5,12.5],showgrid:false},
+      legend:{orientation:'h',x:0,y:1.15},
+    },
+    {displayModeBar:false,responsive:true}
+  );
+}
+
+async function fetchCodexLiveFromErika(){
+  const base = (codexErikaBaseEl?.value || 'https://erika.qbitos.ai').trim().replace(/\/+$/,'');
+  const apiKey = (codexErikaKeyEl?.value || '').trim();
+  const payload = {
+    subject: {
+      name: 'Freya',
+      year: 1990,
+      month: 5,
+      day: 1,
+      hour: 10,
+      minute: 0,
+      longitude: 12.4964,
+      latitude: 41.9028,
+      timezone: 'Europe/Rome',
+    },
+    theme: codexThemeEl?.value || 'dark',
+    language: codexLanguageEl?.value || 'EN',
+    custom_title: (codexCustomTitleEl?.value || 'Freya Quantum Codex').trim().slice(0,40),
+  };
+  const headers = {'Content-Type':'application/json'};
+  if(apiKey) headers['X-API-Key'] = apiKey;
+  const res = await fetch(`${base}/api/v1/codex/live-astrology`,{
+    method:'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(()=>({status:'ERROR',message:'invalid JSON response'}));
+  if(!res.ok || data.status !== 'OK'){
+    throw new Error(data.message || `request failed (${res.status})`);
+  }
+  const chartData = data.live_chart?.chart_data || data.chart_data || {};
+  drawCodexStairChart(chartData,'erika-live');
+  if(codexStairOutputEl){
+    const bodies = Array.isArray(chartData?.bodies) ? chartData.bodies.length : 0;
+    codexStairOutputEl.textContent = `Live Erika stair chart ready (${bodies} bodies).`;
+  }
+  return data;
+}
 
 function drawCodexChart(){
   const cv=document.getElementById('codex-canvas');if(!cv)return;
@@ -4896,13 +5042,7 @@ function exportCodexJson(){
     title: (codexCustomTitleEl?.value || 'Freya Quantum Codex').trim(),
     language: codexLanguageEl?.value || 'EN',
     theme: codexThemeEl?.value || 'dark',
-    chart_data: {
-      bodies: CELEST_BODIES,
-      houses: IRON_HOUSES,
-      zodiac: ZODIAC,
-      gates: GATE_SYM,
-      generatedAt: new Date().toISOString(),
-    },
+    chart_data: codexLocalChartData(),
     context: codexContextXml(),
   };
   codexLastExport = payload;
@@ -4956,13 +5096,25 @@ codexExportJsonBtn?.addEventListener('click', async ()=>{
   }catch(_){}
 });
 codexCopyApiTemplateBtn?.addEventListener('click', async ()=>{
-  const tpl = `curl -X POST 'https://astrologer.p.rapidapi.com/api/v5/context/birth-chart' -H 'Content-Type: application/json' -H 'X-RapidAPI-Host: astrologer.p.rapidapi.com' -H 'X-RapidAPI-Key: YOUR_API_KEY' -d '{"subject":{"name":"Freya","year":1990,"month":5,"day":1,"hour":10,"minute":0,"longitude":12.4964,"latitude":41.9028,"timezone":"Europe/Rome"},"theme":"${codexThemeEl?.value || 'dark'}","language":"${codexLanguageEl?.value || 'EN'}","custom_title":"${(codexCustomTitleEl?.value || 'Freya Quantum Codex').trim().slice(0,40)}","split_chart":true}'`;
+  const base = (codexErikaBaseEl?.value || 'https://erika.qbitos.ai').trim().replace(/\/+$/,'');
+  const tpl = `curl -X POST '${base}/api/v1/codex/live-astrology' -H 'Content-Type: application/json' -H 'X-API-Key: YOUR_API_KEY' -d '{"subject":{"name":"Freya","year":1990,"month":5,"day":1,"hour":10,"minute":0,"longitude":12.4964,"latitude":41.9028,"timezone":"Europe/Rome"},"theme":"${codexThemeEl?.value || 'dark'}","language":"${codexLanguageEl?.value || 'EN'}","custom_title":"${(codexCustomTitleEl?.value || 'Freya Quantum Codex').trim().slice(0,40)}"}'`;
   try{
     await navigator.clipboard.writeText(tpl);
-    if(codexOutputEl) codexOutputEl.textContent = 'Astrology API template copied.';
+    if(codexOutputEl) codexOutputEl.textContent = 'Erika live astrology API template copied.';
   }catch(_){}
 });
-drawCodexChart();buildCodexPanels();
+codexStairLocalBtn?.addEventListener('click', ()=>{
+  drawCodexStairChart(codexLocalChartData(),'local-sim');
+  if(codexStairOutputEl) codexStairOutputEl.textContent = 'Local stair-step chart updated.';
+});
+codexStairLiveBtn?.addEventListener('click', async ()=>{
+  try{
+    await fetchCodexLiveFromErika();
+  }catch(err){
+    if(codexStairOutputEl) codexStairOutputEl.textContent = `Live Erika fetch failed: ${err?.message || err}`;
+  }
+});
+drawCodexChart();buildCodexPanels();drawCodexStairChart(codexLocalChartData(),'local-sim');
 setInterval(()=>{codexRotation+=0.02;if(codexMode==='transit')drawCodexChart();},50);
 
 /* ═══════════════════════════════════════════════════

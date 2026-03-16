@@ -123,6 +123,7 @@ Canonical production base:
 - `https://erika.qbitos.ai/api/v1/codex/context`
 - `https://erika.qbitos.ai/api/v1/codex/chart-data`
 - `https://erika.qbitos.ai/api/v1/codex/split-chart`
+- `https://erika.qbitos.ai/api/v1/codex/live-astrology`
 - `https://erika.qbitos.ai/api/v1/pay/plans`
 - `https://erika.qbitos.ai/api/v1/pay/checkout-link`
 - `https://erika.qbitos.ai/api/v1/system/integration`
