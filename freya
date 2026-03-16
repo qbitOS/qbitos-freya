@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+# Copyright (c) 2026 qbitOS / ugrad.ai. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# Source: https://github.com/qbitOS/qbitos-freya
+# Provenance: freya-unified-cli
+# DAC/Prefix/Steno/Iron-Line/Preflight/search-history controls
+"""Unified Freya CLI for math, conversions, and chat."""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+# Import functions directly from the script
+spec = importlib.util.spec_from_file_location(
+    "freya_math_cli",
+    str(Path(__file__).parent / "tools" / "freya-math-cli.py")
+)
+freya_math_cli = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(freya_math_cli)
+
+data_economics = freya_math_cli.data_economics
+eval_expr = freya_math_cli.eval_expr
+
+
+def chat_conversion(query: str) -> str:
+    """Handle chat-based unit conversions using Mistral SDK."""
+    try:
+        from mistralai import client
+        from mistralai.client.models import UserMessage
+        
+        # Initialize Mistral client
+        mistral_client = client.Mistral()
+        
+        # Send query to Mistral API
+        chat_response = mistral_client.chat.complete(
+            model="mistral-tiny",
+            messages=[UserMessage(content=query)]
+        )
+        
+        # Extract and return the response
+        response = chat_response.choices[0].message.content
+        return response
+    except ImportError as e:
+        return f"ImportError: {e}. Install Mistral SDK with: pip install mistralai"
+    except Exception as e:
+        return f"Error: {e}"
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Freya CLI for math, conversions, and chat")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    # Math commands
+    math_parser = sub.add_parser("math", help="Math and data economics")
+    math_sub = math_parser.add_subparsers(dest="math_cmd", required=True)
+
+    econ_cmd = math_sub.add_parser("econ", help="Compute TB/day cost and percent slices")
+    econ_cmd.add_argument("--tb", type=float, required=True)
+    econ_cmd.add_argument("--cost", type=float, required=True)
+    econ_cmd.add_argument("--pct-a", type=float, default=20.0)
+    econ_cmd.add_argument("--pct-b", type=float, default=2.0)
+
+    expr_cmd = math_sub.add_parser("expr", help="Evaluate a math expression")
+    expr_cmd.add_argument("expression")
+
+    # Chat command
+    chat = sub.add_parser("chat", help="Chat-based unit conversions")
+    chat.add_argument("query", nargs="+", help="Your conversion query")
+
+    args = ap.parse_args()
+    
+    if args.cmd == "math":
+        if args.math_cmd == "econ":
+            print(json.dumps(data_economics(args.tb, args.cost, args.pct_a, args.pct_b), indent=2))
+            return 0
+        elif args.math_cmd == "expr":
+            try:
+                print(eval_expr(args.expression))
+                return 0
+            except Exception as e:
+                print(f"error: {e}", file=sys.stderr)
+                return 1
+    
+    elif args.cmd == "chat":
+        query = " ".join(args.query)
+        print(chat_conversion(query))
+        return 0
+
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

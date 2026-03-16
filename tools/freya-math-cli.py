@@ -31,6 +31,8 @@ def data_economics(tb_per_day: float, cost_per_tb: float, pct_a: float, pct_b: f
 
 
 def eval_expr(expr: str) -> float:
+    # Replace ^ with ** for exponentiation
+    expr = expr.replace("^", "**")
     safe = {
         "abs": abs,
         "round": round,
