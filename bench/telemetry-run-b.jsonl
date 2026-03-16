@@ -1,0 +1,5 @@
+{"time":0,"altitude":0,"velocity":0,"massKg":420000,"fuelKg":300000,"accel":8.1,"thrustN":7600000,"label":"liftoff-b"}
+{"time":1,"altitude":12,"velocity":12,"massKg":417200,"fuelKg":297100,"accel":8.2,"thrustN":7600000,"label":"ascent-b-1"}
+{"time":2,"altitude":31,"velocity":19,"massKg":414400,"fuelKg":294200,"accel":8.35,"thrustN":7600000,"label":"ascent-b-2"}
+{"time":3,"altitude":55,"velocity":24,"massKg":411600,"fuelKg":291300,"accel":8.55,"thrustN":7600000,"label":"ascent-b-3"}
+{"time":4,"altitude":85,"velocity":30,"massKg":408800,"fuelKg":288400,"accel":8.75,"thrustN":7600000,"label":"ascent-b-4"}

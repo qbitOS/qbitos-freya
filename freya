@@ -331,6 +331,25 @@ def _to_float(value: object, default: float = 0.0) -> float:
         return default
 
 
+def _extract_time_sec(raw: dict) -> float:
+    # Accept a broad set of timestamp keys for compatibility across telemetry producers.
+    if "tSec" in raw:
+        return _to_float(raw.get("tSec"), 0.0)
+    if "timeSec" in raw:
+        return _to_float(raw.get("timeSec"), 0.0)
+    if "time" in raw:
+        return _to_float(raw.get("time"), 0.0)
+    if "timestampSec" in raw:
+        return _to_float(raw.get("timestampSec"), 0.0)
+    if "timestampMs" in raw:
+        return _to_float(raw.get("timestampMs"), 0.0) / 1000.0
+    if "timestamp" in raw:
+        ts = _to_float(raw.get("timestamp"), 0.0)
+        # Heuristic: values larger than year-2001 epoch-ms threshold are likely milliseconds.
+        return ts / 1000.0 if ts > 1_000_000_000_000 else ts
+    return 0.0
+
+
 def _phase_for_time(
     t_sec: float,
     maxq_start_sec: float,
@@ -424,7 +443,7 @@ def _annotate_telemetry_rows(
     g0 = 9.80665
 
     for raw in rows:
-        t_sec = _to_float(raw.get("tSec"), _to_float(raw.get("timeSec"), 0.0))
+        t_sec = _extract_time_sec(raw)
         alt_m = _to_float(raw.get("altitudeM"), _to_float(raw.get("altitude"), 0.0))
         vel_m_s = _to_float(raw.get("velocityMs"), _to_float(raw.get("velocity"), 0.0))
         mass_kg = _to_float(raw.get("massKg"), 0.0)
