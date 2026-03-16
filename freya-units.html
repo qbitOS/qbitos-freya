@@ -279,6 +279,24 @@
             height:80px;
             background:transparent;
         }
+        .scale-readout{
+            margin-top:8px;
+            border:1px solid #cbd5e1;
+            border-radius:8px;
+            background:#ffffff;
+            padding:8px 10px;
+            font-family:var(--font-mono);
+        }
+        .scale-readout-main{
+            font-size:0.75rem;
+            color:#0f172a;
+            font-weight:700;
+        }
+        .scale-readout-meta{
+            font-size:0.6875rem;
+            color:#475569;
+            margin-top:2px;
+        }
         canvas{display:block;width:100%;border-radius:var(--radius-sm);}
 
         /* Celestial chart */
@@ -394,6 +412,10 @@
             <div class="card card-light">
                 <div class="card-title"><span class="icon">📏</span> Logarithmic Scale <span style="font-size:0.625rem;color:var(--text-muted);margin-left:auto;">v4.4</span></div>
                 <div class="canvas-wrap scale-wrap"><canvas id="scale-canvas" width="1100" height="80"></canvas></div>
+                <div class="scale-readout">
+                    <div class="scale-readout-main" id="scale-readout-main">Ready — hover or scroll the scale for exact readout.</div>
+                    <div class="scale-readout-meta" id="scale-readout-meta">OLED mode: precision lock on nearest unit and decade.</div>
+                </div>
             </div>
 
             <!-- Main converter -->
@@ -430,8 +452,8 @@
             </div>
 
             <div class="card">
-                <div class="card-title"><span class="icon">⚡</span> Data Economics Quick Lane</div>
-                <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:6px;">
+                <div class="card-title"><span class="icon">⚡</span> Category Economics Quick Lane</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:6px;" id="lane-desc">
                     Fast-operate daily data cost, % slices, and TB↔EB↔ZB conversions without leaving Freya.
                 </div>
                 <div class="quick-row">
@@ -441,27 +463,27 @@
                 </div>
                 <div class="data-lane-grid">
                     <div>
-                        <label class="convert-label">TB per day</label>
+                        <label class="convert-label" id="lane-label-qty">TB per day</label>
                         <input type="number" id="lane-tb" value="474000000" step="1">
                     </div>
                     <div>
-                        <label class="convert-label">Cost per TB ($)</label>
+                        <label class="convert-label" id="lane-label-rate">Cost per TB ($)</label>
                         <input type="number" id="lane-cost" value="400" step="any">
                     </div>
                     <div>
-                        <label class="convert-label">% A</label>
+                        <label class="convert-label" id="lane-label-pcta">% A</label>
                         <input type="number" id="lane-pct-a" value="20" step="any">
                     </div>
                     <div>
-                        <label class="convert-label">% B</label>
+                        <label class="convert-label" id="lane-label-pctb">% B</label>
                         <input type="number" id="lane-pct-b" value="2" step="any">
                     </div>
                 </div>
                 <div class="data-lane-metrics">
-                    <div class="metric-chip"><span>Total/day</span><b id="lane-total">$0</b></div>
-                    <div class="metric-chip"><span>A slice</span><b id="lane-slice-a">$0</b></div>
-                    <div class="metric-chip"><span>B slice</span><b id="lane-slice-b">$0</b></div>
-                    <div class="metric-chip"><span>Volume</span><b id="lane-volume">0 TB</b></div>
+                    <div class="metric-chip"><span id="lane-total-label">Total/day</span><b id="lane-total">$0</b></div>
+                    <div class="metric-chip"><span id="lane-slice-a-label">A slice</span><b id="lane-slice-a">$0</b></div>
+                    <div class="metric-chip"><span id="lane-slice-b-label">B slice</span><b id="lane-slice-b">$0</b></div>
+                    <div class="metric-chip"><span id="lane-volume-label">Volume</span><b id="lane-volume">0 TB</b></div>
                 </div>
             </div>
 
@@ -1203,9 +1225,138 @@ const laneTotalEl = document.getElementById('lane-total');
 const laneSliceAEl = document.getElementById('lane-slice-a');
 const laneSliceBEl = document.getElementById('lane-slice-b');
 const laneVolumeEl = document.getElementById('lane-volume');
+const laneDescEl = document.getElementById('lane-desc');
+const laneQtyLabelEl = document.getElementById('lane-label-qty');
+const laneRateLabelEl = document.getElementById('lane-label-rate');
+const lanePctALabelEl = document.getElementById('lane-label-pcta');
+const lanePctBLabelEl = document.getElementById('lane-label-pctb');
+const laneTotalLabelEl = document.getElementById('lane-total-label');
+const laneSliceALabelEl = document.getElementById('lane-slice-a-label');
+const laneSliceBLabelEl = document.getElementById('lane-slice-b-label');
+const laneVolumeLabelEl = document.getElementById('lane-volume-label');
 
 function fmtMoney(n){
     return Number(n || 0).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
+}
+const LANE_PROFILES = {
+    data: {
+        desc: 'Fast-operate daily data cost, % slices, and TB↔EB↔ZB conversions without leaving Freya.',
+        qtyLabel: 'TB per day',
+        rateLabel: 'Cost per TB ($)',
+        totalLabel: 'Total/day',
+        sliceALabel: 'A slice',
+        sliceBLabel: 'B slice',
+        volumeLabel: 'Volume',
+        presetA: {label:'Use 474M TB/day', qty:474000000, pctA:20, pctB:2},
+        presetB: {label:'Use $400/TB', rate:400}
+    },
+    length: {
+        desc: 'Length lane: estimate budget and slices from selected distance quantity.',
+        qtyLabel: 'Distance value',
+        rateLabel: 'Cost per unit ($)',
+        totalLabel: 'Budget',
+        sliceALabel: 'A segment',
+        sliceBLabel: 'B segment',
+        volumeLabel: 'Scale map',
+        presetA: {label:'Preset: 1,000 units', qty:1000, pctA:25, pctB:5},
+        presetB: {label:'Preset: $2/unit', rate:2}
+    },
+    mass: {
+        desc: 'Mass lane: budget by selected mass unit and split allocations.',
+        qtyLabel: 'Mass value',
+        rateLabel: 'Cost per unit ($)',
+        totalLabel: 'Budget',
+        sliceALabel: 'A allocation',
+        sliceBLabel: 'B allocation',
+        volumeLabel: 'Scale map',
+        presetA: {label:'Preset: 500 units', qty:500, pctA:20, pctB:3},
+        presetB: {label:'Preset: $12/unit', rate:12}
+    },
+    temperature: {
+        desc: 'Temperature lane: evaluate impact cost per degree over range.',
+        qtyLabel: 'Temperature delta',
+        rateLabel: 'Cost per degree ($)',
+        totalLabel: 'Impact cost',
+        sliceALabel: 'A range',
+        sliceBLabel: 'B range',
+        volumeLabel: 'Scale map',
+        presetA: {label:'Preset: 25° delta', qty:25, pctA:30, pctB:10},
+        presetB: {label:'Preset: $100/°', rate:100}
+    },
+    speed: {
+        desc: 'Speed lane: estimate cost based on selected velocity unit.',
+        qtyLabel: 'Speed value',
+        rateLabel: 'Cost per unit ($)',
+        totalLabel: 'Budget',
+        sliceALabel: 'A lane',
+        sliceBLabel: 'B lane',
+        volumeLabel: 'Scale map',
+        presetA: {label:'Preset: 120 units', qty:120, pctA:15, pctB:5},
+        presetB: {label:'Preset: $30/unit', rate:30}
+    },
+    energy: {
+        desc: 'Energy lane: project cost and slices by selected energy unit.',
+        qtyLabel: 'Energy value',
+        rateLabel: 'Cost per unit ($)',
+        totalLabel: 'Energy cost',
+        sliceALabel: 'A usage',
+        sliceBLabel: 'B usage',
+        volumeLabel: 'Scale map',
+        presetA: {label:'Preset: 10,000 units', qty:10000, pctA:35, pctB:8},
+        presetB: {label:'Preset: $0.12/unit', rate:0.12}
+    },
+    pressure: {
+        desc: 'Pressure lane: compare pressure-level budgeting and split allocations.',
+        qtyLabel: 'Pressure value',
+        rateLabel: 'Cost per unit ($)',
+        totalLabel: 'Pressure cost',
+        sliceALabel: 'A band',
+        sliceBLabel: 'B band',
+        volumeLabel: 'Scale map',
+        presetA: {label:'Preset: 101.325 units', qty:101.325, pctA:18, pctB:6},
+        presetB: {label:'Preset: $9/unit', rate:9}
+    },
+    time: {
+        desc: 'Time lane: project timeline spend and segment allocations.',
+        qtyLabel: 'Time value',
+        rateLabel: 'Cost per unit ($)',
+        totalLabel: 'Timeline cost',
+        sliceALabel: 'A window',
+        sliceBLabel: 'B window',
+        volumeLabel: 'Scale map',
+        presetA: {label:'Preset: 40 units', qty:40, pctA:50, pctB:10},
+        presetB: {label:'Preset: $75/unit', rate:75}
+    },
+    calibration: {
+        desc: 'Calibration lane: evaluate BPM/qBPM/QHz cost mapping and slices.',
+        qtyLabel: 'Calibration value',
+        rateLabel: 'Cost per unit ($)',
+        totalLabel: 'Calibration cost',
+        sliceALabel: 'A lane',
+        sliceBLabel: 'B lane',
+        volumeLabel: 'Scale map',
+        presetA: {label:'Preset: 120 BPM', qty:120, pctA:20, pctB:4},
+        presetB: {label:'Preset: $5/unit', rate:5}
+    }
+};
+function laneProfile(){
+    return LANE_PROFILES[activeCat] || LANE_PROFILES.data;
+}
+function applyLaneProfile(){
+    const p = laneProfile();
+    if(laneDescEl) laneDescEl.textContent = p.desc;
+    if(laneQtyLabelEl) laneQtyLabelEl.textContent = p.qtyLabel;
+    if(laneRateLabelEl) laneRateLabelEl.textContent = p.rateLabel;
+    if(lanePctALabelEl) lanePctALabelEl.textContent = '% A';
+    if(lanePctBLabelEl) lanePctBLabelEl.textContent = '% B';
+    if(laneTotalLabelEl) laneTotalLabelEl.textContent = p.totalLabel;
+    if(laneSliceALabelEl) laneSliceALabelEl.textContent = p.sliceALabel;
+    if(laneSliceBLabelEl) laneSliceBLabelEl.textContent = p.sliceBLabel;
+    if(laneVolumeLabelEl) laneVolumeLabelEl.textContent = p.volumeLabel;
+    const presetA = document.getElementById('lane-preset-global');
+    const presetB = document.getElementById('lane-preset-cost');
+    if(presetA) presetA.textContent = p.presetA.label;
+    if(presetB) presetB.textContent = p.presetB.label;
 }
 function updateDataLane(){
     if(!laneTbEl||!laneCostEl||!lanePctAEl||!lanePctBEl) return;
@@ -1220,13 +1371,21 @@ function updateDataLane(){
     if(laneSliceAEl) laneSliceAEl.textContent = fmtMoney(sliceA);
     if(laneSliceBEl) laneSliceBEl.textContent = fmtMoney(sliceB);
     if(laneVolumeEl){
-        const eb = tb / 1e6;
-        const zb = tb / 1e9;
-        laneVolumeEl.textContent = `${fmt(tb)} TB · ${fmt(eb)} EB · ${fmt(zb)} ZB`;
+        if(activeCat === 'data'){
+            const eb = tb / 1e6;
+            const zb = tb / 1e9;
+            laneVolumeEl.textContent = `${fmt(tb)} TB · ${fmt(eb)} EB · ${fmt(zb)} ZB`;
+        }else{
+            const units = unitsForCat(activeCat);
+            const fromU = units[fromSel.value] || units[0];
+            const base = fromU ? tb * fromU.factor : tb;
+            const samples = units.slice(0, 3).map((u)=> `${fmt(base / (u.factor || 1))} ${u.sym}`);
+            laneVolumeEl.textContent = samples.join(' · ');
+        }
     }
     try{
         const ironLine = new BroadcastChannel('iron-line');
-        ironLine.postMessage({type:'freya-data-lane',tb,cost,pctA,pctB,total,sliceA,sliceB,timestamp:Date.now()});
+        ironLine.postMessage({type:'freya-data-lane',category:activeCat,tb,cost,pctA,pctB,total,sliceA,sliceB,timestamp:Date.now()});
         ironLine.close();
     }catch(_){}
 }
@@ -1239,6 +1398,7 @@ function populateSelects(){
         toSel.add(new Option(`${u.sym} — ${u.name}`, i));
     });
     if(units.length>1) toSel.value = 1;
+    applyLaneProfile();
     buildQuickBtns();
     convert();
 }
@@ -1406,12 +1566,34 @@ function drawScale(){
 
     const units = unitsForCat('length');
     const minLog=-35, maxLog=17, range=maxLog-minLog;
+    const hueAt = (log)=> {
+        const t = Math.max(0, Math.min(1, (log - minLog) / range));
+        return Math.round(260 - (t * 165));
+    };
+    // Restore high-contrast color variation across sections.
+    for(let d=minLog; d<=maxLog; d+=5){
+        const x0 = ((d-minLog)/range)*(W-40)+20;
+        const x1 = (((d+5)-minLog)/range)*(W-40)+20;
+        const hue = hueAt(d + 2.5);
+        ctx.fillStyle = `hsla(${hue}, 95%, 60%, ${((d/5)%2===0)?0.07:0.03})`;
+        ctx.fillRect(x0, 12, x1 - x0, H - 24);
+    }
+    for(let d=minLog; d<=maxLog; d+=5){
+        const x = ((d-minLog)/range)*(W-40)+20;
+        ctx.fillStyle='rgba(71,85,105,0.45)';
+        ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
+        ctx.fillStyle='#334155';
+        ctx.font='9px monospace';
+        ctx.textAlign='center';
+        ctx.fillText(`10^${d}`,x,H-4);
+    }
     units.forEach(u=>{
         const log = Math.log10(u.factor);
         const x = ((log-minLog)/range)*(W-40)+20;
-        ctx.fillStyle='rgba(148,163,184,0.65)';
+        const hue = hueAt(log);
+        ctx.fillStyle=`hsl(${hue} 95% 55%)`;
         ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
-        ctx.fillStyle='#334155';
+        ctx.fillStyle=`hsl(${hue} 80% 40%)`;
         ctx.font='9px monospace';
         ctx.textAlign='center';
         ctx.fillText(u.sym,x,10);
@@ -1422,10 +1604,66 @@ function drawScale(){
         const meters = val*fromU.factor;
         const log = Math.log10(meters);
         const x = ((log-minLog)/range)*(W-40)+20;
-        ctx.fillStyle='rgba(59,130,246,0.16)'; ctx.fillRect(x-10,0,20,H);
-        ctx.fillStyle='#1d4ed8'; ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
+        ctx.fillStyle='rgba(8,145,178,0.22)'; ctx.fillRect(x-10,0,20,H);
+        ctx.fillStyle='#0ea5e9'; ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
         ctx.beginPath(); ctx.moveTo(x,H-4); ctx.lineTo(x-6,H); ctx.lineTo(x+6,H); ctx.fill();
     }
+}
+const scaleReadoutMain = document.getElementById('scale-readout-main');
+const scaleReadoutMeta = document.getElementById('scale-readout-meta');
+function setScaleReadout(log10Value, mode){
+    const units = unitsForCat('length');
+    const meters = Math.pow(10, log10Value);
+    let nearest = units[0];
+    let nearestDiff = Infinity;
+    units.forEach((u)=>{
+        const d = Math.abs(Math.log10(u.factor) - log10Value);
+        if(d < nearestDiff){
+            nearest = u;
+            nearestDiff = d;
+        }
+    });
+    const inUnit = meters / nearest.factor;
+    if(scaleReadoutMain){
+        scaleReadoutMain.textContent = `${mode}: ${fmt(inUnit)} ${nearest.sym} (${fmt(meters)} m · 10^${log10Value.toFixed(3)})`;
+    }
+    if(scaleReadoutMeta){
+        scaleReadoutMeta.textContent = `${nearest.name} · nearest factor ${nearest.factor.toExponential(4)} m`;
+    }
+}
+function setupScaleInteractions(){
+    const canvas = document.getElementById('scale-canvas');
+    if(!canvas || canvas.dataset.scaleBound==='1') return;
+    canvas.dataset.scaleBound='1';
+    const minLog=-35, maxLog=17, range=maxLog-minLog;
+    const xToLog = (clientX)=>{
+        const rect = canvas.getBoundingClientRect();
+        const localX = Math.max(20, Math.min(rect.width-20, clientX - rect.left));
+        const t = (localX - 20) / Math.max(1, (rect.width - 40));
+        return minLog + (t * range);
+    };
+    canvas.addEventListener('mousemove',(e)=>{
+        setScaleReadout(xToLog(e.clientX), 'Hover');
+    });
+    canvas.addEventListener('mouseleave',()=>{
+        const units = unitsForCat('length');
+        const fromU = units[fromSel.value] || units[0];
+        const val = parseFloat(valInput.value)||0;
+        const meters = Math.max(1e-35, val * fromU.factor);
+        setScaleReadout(Math.log10(meters), 'Current');
+    });
+    canvas.addEventListener('wheel',(e)=>{
+        e.preventDefault();
+        const k = e.deltaY < 0 ? 1.08 : 1/1.08;
+        const current = parseFloat(valInput.value) || 1;
+        const next = Math.max(1e-24, current * k);
+        valInput.value = Number(next.toPrecision(10)).toString();
+        convert();
+        const units = unitsForCat('length');
+        const fromU = units[fromSel.value] || units[0];
+        const meters = Math.max(1e-35, next * fromU.factor);
+        setScaleReadout(Math.log10(meters), 'Scroll');
+    }, {passive:false});
 }
 
 function buildQuickBtns(){
@@ -1465,6 +1703,7 @@ document.getElementById('conv-swap').addEventListener('click',()=>{
     const tmp=fromSel.value; fromSel.value=toSel.value; toSel.value=tmp; convert();
 });
 populateSelects();
+setupScaleInteractions();
 if(laneTbEl){ laneTbEl.addEventListener('input', updateDataLane); }
 if(laneCostEl){ laneCostEl.addEventListener('input', updateDataLane); }
 if(lanePctAEl){ lanePctAEl.addEventListener('input', updateDataLane); }
@@ -1472,10 +1711,21 @@ if(lanePctBEl){ lanePctBEl.addEventListener('input', updateDataLane); }
 const lanePresetGlobalBtn = document.getElementById('lane-preset-global');
 const lanePresetCostBtn = document.getElementById('lane-preset-cost');
 const laneCopyJsonBtn = document.getElementById('lane-copy-json');
-if(lanePresetGlobalBtn) lanePresetGlobalBtn.addEventListener('click',()=>{ laneTbEl.value = 474000000; updateDataLane(); });
-if(lanePresetCostBtn) lanePresetCostBtn.addEventListener('click',()=>{ laneCostEl.value = 400; updateDataLane(); });
+if(lanePresetGlobalBtn) lanePresetGlobalBtn.addEventListener('click',()=>{
+    const p = laneProfile();
+    laneTbEl.value = p.presetA.qty;
+    lanePctAEl.value = p.presetA.pctA;
+    lanePctBEl.value = p.presetA.pctB;
+    updateDataLane();
+});
+if(lanePresetCostBtn) lanePresetCostBtn.addEventListener('click',()=>{
+    const p = laneProfile();
+    laneCostEl.value = p.presetB.rate;
+    updateDataLane();
+});
 if(laneCopyJsonBtn) laneCopyJsonBtn.addEventListener('click', async ()=>{
     const payload = {
+        category: activeCat,
         tbPerDay:Number(laneTbEl?.value||0),
         costPerTbUsd:Number(laneCostEl?.value||0),
         pctA:Number(lanePctAEl?.value||0),
@@ -1490,6 +1740,7 @@ if(laneCopyJsonBtn) laneCopyJsonBtn.addEventListener('click', async ()=>{
         setTimeout(()=>{laneCopyJsonBtn.textContent='Copy JSON';},1200);
     }catch(_){}
 });
+applyLaneProfile();
 updateDataLane();
 window.addEventListener('resize', drawScale, {passive:true});
 
