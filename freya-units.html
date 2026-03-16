@@ -468,13 +468,71 @@
             <div class="card">
                 <div class="card-title"><span class="icon">🧰</span> Terminal Pack + Mistral SDK Lane</div>
                 <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:8px;">
-                    Use the Freya terminal pack for npm/python/uv/ruff/ty/hatch/pyx workflows, plus direct SDK references for Mistral code embeddings.
+                    Benchmark and local-tooling lane for Freya desktop terminal workflows, with stock prompt testing for cross-model Pass/Fail.
                 </div>
                 <div class="quick-row">
                     <button class="quick-btn" id="open-terminal-lane">Open Terminal Lane</button>
                     <button class="quick-btn" id="repo-update-check">Check Updates</button>
                     <a class="quick-btn" href="https://docs.mistral.ai/capabilities/embeddings/code_embeddings" target="_blank" style="text-decoration:none;">Mistral Code Embeddings</a>
+                    <a class="quick-btn" href="https://uvmis.ugrad.ai/modellab/" target="_blank" style="text-decoration:none;">Open ugrad Model Lab</a>
                 </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:10px 0;">
+                    <div class="canvas-wrap" style="padding:10px;">
+                        <div style="font-size:0.6875rem;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px;">BENCH REQUIREMENTS (PASS/FAIL)</div>
+                        <ul style="margin:0 0 0 16px;font-size:0.75rem;line-height:1.55;color:var(--text);">
+                            <li>Fixed stock prompt, fixed temp/top_p, fixed max tokens.</li>
+                            <li>Schema-valid output with numeric final answer + steps.</li>
+                            <li>Latency logged (p50/p95), error rate, token/cost footprint.</li>
+                            <li>T5 overclock noBLINK gate: local T5 path available, deterministic fallback, no spinner-only stalls.</li>
+                            <li>Result ledger: model, date, commit SHA, pass/fail and notes.</li>
+                        </ul>
+                    </div>
+                    <div class="canvas-wrap" style="padding:10px;">
+                        <div style="font-size:0.6875rem;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px;">LOCAL DESKTOP TERMINAL INSTALL</div>
+                        <pre style="margin:0;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;overflow:auto;font-size:0.6875rem;line-height:1.5;color:var(--text);"># 1) Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2) Clone + enter Freya repo
+git clone https://github.com/qbitOS/qbitos-freya.git
+cd qbitos-freya
+
+# 3) Python tool lane
+uv venv
+uv pip install pillow
+uv run python tools/freya-math-cli.py --help
+uv run python tools/freya-hexcast-cli.py --help
+
+# 4) T5 noBLINK readiness check (optional)
+test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent uvspeed repo"</pre>
+                    </div>
+                </div>
+                <div style="font-size:0.6875rem;color:var(--text-muted);font-family:var(--font-mono);margin-bottom:6px;">STOCK PROMPT (MODEL BENCH)</div>
+                <textarea id="bench-stock-prompt" class="calc-input" style="min-height:92px;">Solve and verify: Convert 474,000,000 TB/day at $400 per TB, compute 20% and 2% slices, show formulas, output JSON fields {total_usd_per_day, slice20_usd, slice2_usd, assumptions, final_answer}. Then provide one-line PASS/FAIL reasoning quality score (0-100).</textarea>
+                <div class="quick-row" style="margin-top:8px;">
+                    <button class="quick-btn" id="bench-copy-prompt">Copy Stock Prompt</button>
+                    <a class="quick-btn" id="bench-open-lab-with-prompt" href="https://uvmis.ugrad.ai/modellab/" target="_blank" style="text-decoration:none;">Run via Model Lab</a>
+                </div>
+                <div style="font-size:0.6875rem;color:var(--text-muted);font-family:var(--font-mono);margin:10px 0 6px;">BENCH RESULT RECORDER</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:8px;">
+                    <input id="bench-model" class="calc-input" placeholder="Model (e.g. mistral-large)">
+                    <input id="bench-site" class="calc-input" value="freya-units" placeholder="Site/app">
+                    <input id="bench-lat-p50" class="calc-input" type="number" step="any" placeholder="Latency p50 ms">
+                    <input id="bench-lat-p95" class="calc-input" type="number" step="any" placeholder="Latency p95 ms">
+                    <input id="bench-cost" class="calc-input" type="number" step="any" placeholder="Cost / 1M tokens USD">
+                    <select id="bench-pass" class="calc-input">
+                        <option value="PASS">PASS</option>
+                        <option value="FAIL">FAIL</option>
+                    </select>
+                </div>
+                <textarea id="bench-notes" class="calc-input" style="min-height:64px;" placeholder="Notes (schema validity, quality score, errors, deterministic behavior)"></textarea>
+                <div class="quick-row" style="margin-top:8px;">
+                    <button class="quick-btn" id="bench-add-record">Add Record</button>
+                    <button class="quick-btn" id="bench-copy-records">Copy Records JSON</button>
+                    <button class="quick-btn" id="bench-download-records">Download Records JSON</button>
+                    <button class="quick-btn" id="bench-clear-records">Clear Records</button>
+                </div>
+                <pre id="bench-records-output" style="margin:0;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;max-height:180px;overflow:auto;font-size:0.6875rem;line-height:1.5;color:var(--text);">[]</pre>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;" id="bench-record-status">Bench records: 0</div>
                 <div style="font-size:0.75rem;color:var(--text-muted);" id="repo-update-status">Update status: idle</div>
             </div>
         </div>
@@ -718,9 +776,111 @@ if(qpCopy){
 const openTerminalLaneBtn = document.getElementById('open-terminal-lane');
 const repoUpdateCheckBtn = document.getElementById('repo-update-check');
 const repoUpdateStatus = document.getElementById('repo-update-status');
+const benchStockPrompt = document.getElementById('bench-stock-prompt');
+const benchCopyPromptBtn = document.getElementById('bench-copy-prompt');
+const benchOpenLabWithPrompt = document.getElementById('bench-open-lab-with-prompt');
+const benchModelInput = document.getElementById('bench-model');
+const benchSiteInput = document.getElementById('bench-site');
+const benchLatP50Input = document.getElementById('bench-lat-p50');
+const benchLatP95Input = document.getElementById('bench-lat-p95');
+const benchCostInput = document.getElementById('bench-cost');
+const benchPassInput = document.getElementById('bench-pass');
+const benchNotesInput = document.getElementById('bench-notes');
+const benchAddRecordBtn = document.getElementById('bench-add-record');
+const benchCopyRecordsBtn = document.getElementById('bench-copy-records');
+const benchDownloadRecordsBtn = document.getElementById('bench-download-records');
+const benchClearRecordsBtn = document.getElementById('bench-clear-records');
+const benchRecordsOutput = document.getElementById('bench-records-output');
+const benchRecordStatus = document.getElementById('bench-record-status');
+let benchRecords = [];
 if(openTerminalLaneBtn){
     openTerminalLaneBtn.addEventListener('click', ()=>{
         window.location.href = 'freya-terminal.html';
+    });
+}
+if(benchCopyPromptBtn && benchStockPrompt){
+    benchCopyPromptBtn.addEventListener('click', async ()=>{
+        try{
+            await navigator.clipboard.writeText(benchStockPrompt.value || '');
+            benchCopyPromptBtn.textContent = 'Copied Prompt';
+            setTimeout(()=>{ benchCopyPromptBtn.textContent = 'Copy Stock Prompt'; }, 1300);
+        }catch(_){}
+    });
+}
+if(benchOpenLabWithPrompt && benchStockPrompt){
+    benchOpenLabWithPrompt.addEventListener('click', ()=>{
+        const q = encodeURIComponent(benchStockPrompt.value || '');
+        benchOpenLabWithPrompt.href = 'https://uvmis.ugrad.ai/modellab/?prompt=' + q;
+    });
+}
+function parseNumOrNull(v){
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+}
+function renderBenchRecords(){
+    if(benchRecordsOutput) benchRecordsOutput.textContent = JSON.stringify(benchRecords, null, 2);
+    if(benchRecordStatus) benchRecordStatus.textContent = 'Bench records: ' + benchRecords.length;
+    try{ localStorage.setItem('freya_bench_records_v1', JSON.stringify(benchRecords)); }catch(_){}
+}
+try{
+    const saved = localStorage.getItem('freya_bench_records_v1');
+    if(saved){
+        const parsed = JSON.parse(saved);
+        if(Array.isArray(parsed)) benchRecords = parsed;
+    }
+}catch(_){}
+renderBenchRecords();
+if(benchAddRecordBtn){
+    benchAddRecordBtn.addEventListener('click', ()=>{
+        const model = String(benchModelInput?.value || '').trim();
+        if(!model){
+            if(benchRecordStatus) benchRecordStatus.textContent = 'Bench records: model is required';
+            return;
+        }
+        const rec = {
+            timestamp: new Date().toISOString(),
+            commit: localStorage.getItem('freya_last_commit_sha_units') || 'unknown',
+            model,
+            site: String(benchSiteInput?.value || 'freya-units').trim() || 'freya-units',
+            latency_p50_ms: parseNumOrNull(benchLatP50Input?.value),
+            latency_p95_ms: parseNumOrNull(benchLatP95Input?.value),
+            cost_per_1m_tokens_usd: parseNumOrNull(benchCostInput?.value),
+            verdict: String(benchPassInput?.value || 'PASS'),
+            notes: String(benchNotesInput?.value || '').trim(),
+            prompt: String(benchStockPrompt?.value || '').trim()
+        };
+        benchRecords.unshift(rec);
+        renderBenchRecords();
+        if(benchRecordStatus) benchRecordStatus.textContent = 'Bench records: added ' + model;
+    });
+}
+if(benchCopyRecordsBtn){
+    benchCopyRecordsBtn.addEventListener('click', async ()=>{
+        try{
+            await navigator.clipboard.writeText(JSON.stringify(benchRecords, null, 2));
+            benchCopyRecordsBtn.textContent = 'Copied JSON';
+            setTimeout(()=>{ benchCopyRecordsBtn.textContent = 'Copy Records JSON'; }, 1200);
+        }catch(_){}
+    });
+}
+if(benchDownloadRecordsBtn){
+    benchDownloadRecordsBtn.addEventListener('click', ()=>{
+        const blob = new Blob([JSON.stringify(benchRecords, null, 2) + '\n'], {type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'freya-bench-records.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    });
+}
+if(benchClearRecordsBtn){
+    benchClearRecordsBtn.addEventListener('click', ()=>{
+        benchRecords = [];
+        renderBenchRecords();
+        if(benchRecordStatus) benchRecordStatus.textContent = 'Bench records: cleared';
     });
 }
 async function checkRepoUpdate(){
