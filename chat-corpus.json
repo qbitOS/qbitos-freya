@@ -1,0 +1,33 @@
+{
+  "meta": {
+    "project": "qbitos-freya",
+    "corpusVersion": "1.0.0",
+    "note": "beyondBINARY quantum-prefixed | uvspeed | {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1}"
+  },
+  "sessions": [
+    {
+      "id": "2026-03-16-readiness-api-bridge",
+      "date": "2026-03-16",
+      "title": "Readiness and API bridge batch",
+      "summary": [
+        "Added deploy pack and production readiness gate.",
+        "Added Codex API to Freya CLI bridge and reverse bridge endpoints.",
+        "Verified pre-audit and bridge smoke tests for release readiness."
+      ],
+      "artifacts": [
+        "codex_api.py",
+        "freya",
+        "scripts/pre.nu",
+        "scripts/prod-ready.nu",
+        "scripts/deploy-codex.sh",
+        "deploy/env/codex_api.env.example",
+        "deploy/systemd/freya-codex-api.service",
+        "deploy/nginx/erika.qbitos.ai.conf",
+        "deploy/caddy/Caddyfile.erika.qbitos.ai",
+        "README.qmd",
+        "PROGRESS.md",
+        "TIMESHEET.md"
+      ]
+    }
+  ]
+}

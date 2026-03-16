@@ -27,7 +27,8 @@ Canonical FreyaUnits deployment surface for:
 - `freya-landing.html` — launch/showcase page for fast entry
 - `freya-units.html` — full FreyaUnits web app (uvspeed parity)
 - `freya-terminal.html` — terminal lane for `econ` and `expr` commands
-- `freya` — unified CLI (`math`, `chat`, `models`) with multi-backend routing
+- `freya` — unified CLI (`math`, `chat`, `models`, `market`, `code`) with multi-backend routing
+- `codex_api.py` — pullable Freya Codex API service (deploy target: `erika.qbitos.ai`)
 - `tools/freya-math-engine.js` — reusable browser/Node math engine extension
 - `tools/freya-math-cli.py` — terminal CLI for quick data-econ + expression math
 - `tools/freya-hexcast-cli.py` — 8-bit dither CLI for terminal art + character packs
@@ -52,6 +53,20 @@ uv run python tools/freya-hexcast-cli.py batch
 ./freya market convert --amount 0.25 --from BTC --to USD
 ./freya market quote --symbol AAPL --market stock
 ./freya market quote --symbol ETH --market crypto
+./freya code qr --text "https://freya.qbitos.ai/menu" --size 320 --out bench/freya-hexcast-qr.png
+./freya code lookup --code 9780140328721
+./freya code codec --from ascii --to hex --text "freya"
+./freya code codec --from hex --to binary --text "6672657961"
+./freya code codec --from binary --to ascii --text "0110011001110010011001010111100101100001"
+./freya code quicklist --codes "9780140328721,737628064502,012345678905"
+./freya code dam-tree --root "kbatch/ingredients" --input-json bench/ingredients.json
+./freya time convert --smpte 00:01:12:15 --fps 30
+./freya time synclock --reference-unix 1710000000.120 --device-unix 1710000000.184 --reference-end-unix 1710000060.120 --device-end-unix 1710000060.186
+./freya time calibrate --distance-m 402.336 --duration-sec 11.8 --mass-kg 1450 --power-w 420000 --clock-offset-ms 2.8 --clock-drift-ppm 18
+./freya time jawbreaker-race --distance-m 402.336 --laps 3 --splits "11.8,11.6,11.4" --fps 30 --reference-unix 1710000000.12 --device-unix 1710000000.14
+./freya music transpose --notes "C4,E4,G4,B4" --semitones 2 --key D
+./freya music daw-sync --bpm 128 --sample-rate 48000 --buffer-size 256 --ppq 960 --bars 8 --fps 30
+./freya music binaural --base-hz 220 --beat-hz 8 --duration-sec 120
 ./freya quantum run --qubits 2 --program "h 0; cx 0 1; measure" --shots 2048
 ./freya chunk list
 ./freya chunk run --id models.doctor
@@ -70,7 +85,113 @@ uv run python tools/freya-hexcast-cli.py batch
 ./freya chunk run --id agents.create --agent-name mission-ops --agent-script mission_ops.py
 ./freya chunk run --id plugins.install --plugin-name telemetry-pack
 ./freya chunk run --id bench.run --bench-command "./freya math expr 1+1" --iterations 20
+./freya chunk run --id time.synclock --reference-unix 1710000000.120 --device-unix 1710000000.184 --reference-end-unix 1710000060.120 --device-end-unix 1710000060.186
+./freya chunk run --id time.calibration --distance-m 402.336 --duration-sec 11.8 --mass-kg 1450 --power-w 420000 --clock-offset-ms 2.8 --clock-drift-ppm 18
+./freya chunk run --id jawbreaker.race --distance-m 402.336 --laps 3 --splits "11.8,11.6,11.4" --fps 30 --reference-unix 1710000000.12 --device-unix 1710000000.14
+./freya chunk run --id music.transpose --notes "C4,E4,G4,B4" --semitones 2 --key D
+./freya chunk run --id music.dawsync --bpm 128 --sample-rate 48000 --buffer-size 256 --ppq 960 --bars 8 --fps 30
+./freya chunk run --id music.binaural --base-hz 220 --beat-hz 8 --duration-sec 120
+nu scripts/pre.nu
 ./freya chunk scaffold --id custom.my-new-component --title "My New Component"
+```
+
+## Freya Codex Pull API (erika.qbitos.ai)
+
+Canonical production base:
+
+- `https://erika.qbitos.ai/api/v1/codex/context`
+- `https://erika.qbitos.ai/api/v1/codex/chart-data`
+- `https://erika.qbitos.ai/api/v1/codex/split-chart`
+- `https://erika.qbitos.ai/api/v1/pay/plans`
+- `https://erika.qbitos.ai/api/v1/pay/checkout-link`
+- `https://erika.qbitos.ai/api/v1/system/integration`
+- `https://erika.qbitos.ai/api/v1/freya/tools`
+- `https://erika.qbitos.ai/api/v1/freya/run`
+
+Local run:
+
+```bash
+uv run python codex_api.py --host 0.0.0.0 --port 8787
+```
+
+Example request:
+
+```bash
+curl -X POST "https://erika.qbitos.ai/api/v1/codex/context" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -d '{
+    "subject": {
+      "name": "Freya",
+      "year": 1990,
+      "month": 5,
+      "day": 1,
+      "hour": 10,
+      "minute": 0,
+      "longitude": 12.4964,
+      "latitude": 41.9028,
+      "timezone": "Europe/Rome",
+      "zodiac_type": "Tropical",
+      "houses_system_identifier": "P"
+    },
+    "theme": "dark",
+    "language": "EN",
+    "custom_title": "Freya Codex"
+  }'
+```
+
+Production go-live pack (included in repo):
+
+- `deploy/env/codex_api.env.example` (copy to `/etc/qbitos/freya-codex.env`)
+- `deploy/systemd/freya-codex-api.service`
+- `deploy/nginx/erika.qbitos.ai.conf` (Nginx reverse proxy + TLS)
+- `deploy/caddy/Caddyfile.erika.qbitos.ai` (Caddy alternative)
+- `scripts/deploy-codex.sh` (one-command rsync + systemd restart + health probe)
+
+Go-live quickstart:
+
+```bash
+chmod +x scripts/deploy-codex.sh
+./scripts/deploy-codex.sh
+curl -fsS https://erika.qbitos.ai/health
+```
+
+Production readiness gate:
+
+```bash
+# Safe local dry-run (default):
+nu scripts/prod-ready.nu
+
+# Full live verification (DNS/TLS/API/auth):
+PROD_DRY_RUN=0 FREYA_ERIKA_API_KEY="YOUR_KEY" nu scripts/prod-ready.nu
+```
+
+Notes:
+
+- The API is live only after DNS + reverse proxy + systemd service are deployed on your host.
+- Set a real `CODEX_API_KEYS` value in `/etc/qbitos/freya-codex.env` before exposing `/api/v1/*`.
+- If you use Nginx, symlink `deploy/nginx/erika.qbitos.ai.conf` into `sites-enabled` and reload Nginx.
+- `GET /api/v1/system/integration` reports DAC/Iron Line/Quantum Gutter Prefix/Steno/Preflight flags.
+- `POST /api/v1/freya/run` is whitelist-only and API-key protected (no arbitrary shell execution).
+
+## Cost model (once live)
+
+- API plans are built in: Starter `$29/mo`, Pro `$99/mo`, Enterprise `$499/mo` (`/api/v1/pay/plans`).
+- Hosting estimate: small VPS + TLS proxy is typically `$10-$40/mo`; managed platform can be higher.
+- Domain/DNS estimate: usually `$1-$5/mo` equivalent (depending on registrar/TLD).
+- Total practical floor: about `$40-$70/mo` for a small production footprint (Starter + VPS + domain).
+
+## API bridge from CLI
+
+`freya` can call `erika.qbitos.ai` directly:
+
+```bash
+./freya erika health
+./freya erika integration
+./freya erika plans
+./freya erika tools
+./freya erika run --tool math.expr --args-json '{"expression":"(2+2)*4"}'
+./freya erika context --subject-json '{"name":"Freya","year":1990,"month":5,"day":1}' --theme dark --language EN
 ```
 
 ## Phase A-C Initial Chunk Coverage (1-5)

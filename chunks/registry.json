@@ -190,6 +190,60 @@
       "type": "perf",
       "entrypoint": "chunk.run",
       "description": "Compare benchmark JSONL snapshots and compute drift/improvement."
+    },
+    {
+      "id": "time.synclock",
+      "title": "Sync Clock Analyzer",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "time",
+      "entrypoint": "chunk.run",
+      "description": "Compute reference/device offset and drift ppm for sync-locked timing."
+    },
+    {
+      "id": "time.calibration",
+      "title": "Energy Speed Time Calibration",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "time",
+      "entrypoint": "chunk.run",
+      "description": "Calibrate energy-speed-time measurements with clock offset/drift corrections."
+    },
+    {
+      "id": "jawbreaker.race",
+      "title": "Jawbreaker Speed Race",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "perf",
+      "entrypoint": "chunk.run",
+      "description": "Generate race timing metrics from split times with SMPTE and optional sync context."
+    },
+    {
+      "id": "music.transpose",
+      "title": "Music Transpose Engine",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "music",
+      "entrypoint": "chunk.run",
+      "description": "Transpose note streams and return MIDI/frequency mapping."
+    },
+    {
+      "id": "music.dawsync",
+      "title": "DAW Sync Clock",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "music",
+      "entrypoint": "chunk.run",
+      "description": "Compute beat/bar/sample/buffer timing for cross-DAW sync."
+    },
+    {
+      "id": "music.binaural",
+      "title": "Binaural Signal Flow",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "music",
+      "entrypoint": "chunk.run",
+      "description": "Generate left/right oscillator frequencies for binaural signal flow."
     }
   ]
 }

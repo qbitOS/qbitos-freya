@@ -1,0 +1,20 @@
+# beyondBINARY quantum-prefixed | uvspeed | {n, +1, -n, +0, 0, -1, +n, +2, -0, +3, 1}
+[Unit]
+Description=Freya Codex API (erika.qbitos.ai)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/qbitos-freya
+EnvironmentFile=/etc/qbitos/freya-codex.env
+ExecStart=/usr/bin/env uv run python codex_api.py --host ${CODEX_API_HOST} --port ${CODEX_API_PORT}
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

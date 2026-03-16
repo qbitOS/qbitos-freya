@@ -25,6 +25,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Import math helpers from existing CLI module.
@@ -96,6 +97,8 @@ FREYA_STATE_DIR = Path(__file__).parent / ".freya"
 FREYA_PROFILE_PATH = FREYA_STATE_DIR / "profile.json"
 FREYA_PLUGIN_REGISTRY_PATH = FREYA_STATE_DIR / "plugins.json"
 FREYA_AGENT_DIR = FREYA_STATE_DIR / "agents"
+ERIKA_BASE = os.getenv("FREYA_ERIKA_BASE", "https://erika.qbitos.ai").rstrip("/")
+ERIKA_API_KEY = os.getenv("FREYA_ERIKA_API_KEY", os.getenv("CODEX_API_KEY", "")).strip()
 
 
 def _post_json(url: str, payload: dict, headers: dict | None = None, timeout: int = 45) -> dict:
@@ -126,6 +129,23 @@ def _get_text(url: str, headers: dict | None = None, timeout: int = 30) -> str:
     req = urllib.request.Request(url, headers=req_headers, method="GET")
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8")
+
+
+def _erika_headers(require_key: bool = False) -> dict:
+    headers = {"Content-Type": "application/json"}
+    if ERIKA_API_KEY:
+        headers["X-API-Key"] = ERIKA_API_KEY
+    if require_key and "X-API-Key" not in headers:
+        raise ValueError("missing API key: set FREYA_ERIKA_API_KEY (or CODEX_API_KEY)")
+    return headers
+
+
+def _erika_get(path: str, require_key: bool = False) -> dict:
+    return _get_json(f"{ERIKA_BASE}{path}", headers=_erika_headers(require_key=require_key), timeout=45)
+
+
+def _erika_post(path: str, payload: dict, require_key: bool = False) -> dict:
+    return _post_json(f"{ERIKA_BASE}{path}", payload, headers=_erika_headers(require_key=require_key), timeout=60)
 
 
 def _market_convert(amount: float, base: str, quote: str) -> dict:
@@ -278,6 +298,253 @@ def _market_quote(symbol: str, market: str) -> dict:
     except Exception:  # noqa: BLE001
         fallback = {"BTC": 65000.0, "ETH": 3200.0, "SOL": 145.0, "USDT": 1.0, "USDC": 1.0}
         return {"market": "crypto", "symbol": sym, "priceUsd": fallback[sym], "source": "fallback-table"}
+
+
+def _code_qr_payload(text: str, size: int) -> dict:
+    clean = text.strip()
+    if not clean:
+        raise ValueError("qr text must not be empty")
+    px = max(96, min(2048, int(size)))
+    encoded = urllib.parse.quote(clean, safe="")
+    png_url = f"https://api.qrserver.com/v1/create-qr-code/?size={px}x{px}&data={encoded}"
+    svg_url = f"https://api.qrserver.com/v1/create-qr-code/?size={px}x{px}&format=svg&data={encoded}"
+    return {"text": clean, "size": px, "pngUrl": png_url, "svgUrl": svg_url}
+
+
+def _code_qr(text: str, size: int, out: str | None) -> dict:
+    payload = _code_qr_payload(text, size)
+    if out:
+        out_path = Path(out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        req = urllib.request.Request(payload["pngUrl"], method="GET")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            out_path.write_bytes(resp.read())
+        payload["saved"] = str(out_path)
+    return payload
+
+
+def _code_lookup(code: str) -> dict:
+    c = "".join(ch for ch in code.strip() if ch.isdigit() or ch.upper() == "X")
+    if not c:
+        raise ValueError("code must not be empty")
+
+    # 1) OpenLibrary ISBN (books)
+    if len(c) in {10, 13}:
+        try:
+            data = _get_json(f"https://openlibrary.org/isbn/{c}.json")
+            return {
+                "code": c,
+                "type": "isbn",
+                "source": "openlibrary",
+                "title": data.get("title"),
+                "publishDate": data.get("publish_date"),
+                "publishers": data.get("publishers", []),
+                "authors": data.get("authors", []),
+                "raw": data,
+            }
+        except Exception:  # noqa: BLE001
+            pass
+
+    # 2) Google Books fallback
+    if len(c) in {10, 13}:
+        try:
+            q = urllib.parse.quote(f"isbn:{c}", safe="")
+            data = _get_json(f"https://www.googleapis.com/books/v1/volumes?q={q}")
+            items = data.get("items", [])
+            if items:
+                vi = items[0].get("volumeInfo", {})
+                return {
+                    "code": c,
+                    "type": "isbn",
+                    "source": "google-books",
+                    "title": vi.get("title"),
+                    "authors": vi.get("authors", []),
+                    "publisher": vi.get("publisher"),
+                    "publishedDate": vi.get("publishedDate"),
+                    "categories": vi.get("categories", []),
+                    "raw": vi,
+                }
+        except Exception:  # noqa: BLE001
+            pass
+
+    # 3) OpenFoodFacts for UPC/EAN products
+    try:
+        data = _get_json(f"https://world.openfoodfacts.org/api/v2/product/{c}.json")
+        prod = data.get("product", {})
+        if prod:
+            return {
+                "code": c,
+                "type": "barcode",
+                "source": "openfoodfacts",
+                "name": prod.get("product_name") or prod.get("generic_name"),
+                "brand": prod.get("brands"),
+                "quantity": prod.get("quantity"),
+                "categories": prod.get("categories"),
+                "raw": prod,
+            }
+    except Exception:  # noqa: BLE001
+        pass
+
+    return {
+        "code": c,
+        "type": "unknown",
+        "source": "none",
+        "message": "No match found in OpenLibrary, Google Books, or OpenFoodFacts.",
+    }
+
+
+def _code_quicklist(codes: str) -> dict:
+    tokens = [
+        "".join(ch for ch in raw.strip() if ch.isdigit() or ch.upper() == "X")
+        for raw in codes.replace("\n", ",").split(",")
+    ]
+    clean_codes = [t for t in tokens if t]
+    if not clean_codes:
+        raise ValueError("codes list is empty")
+    items = []
+    for c in clean_codes[:120]:
+        hit = _code_lookup(c)
+        label = hit.get("name") or hit.get("title") or f"item-{c}"
+        items.append({"code": c, "label": label, "source": hit.get("source", "none"), "type": hit.get("type", "unknown")})
+    return {
+        "count": len(items),
+        "items": items,
+        "quickListText": "\n".join(
+            f"{i + 1}. {it['label']} [{it['code']}] ({it['source']})" for i, it in enumerate(items)
+        ),
+    }
+
+
+def _code_dam_tree(root: str, input_json: str | None) -> dict:
+    root_clean = root.strip() or "kbatch/ingredients"
+    items = []
+    if input_json:
+        path = Path(input_json)
+        if not path.exists():
+            raise FileNotFoundError(f"input json not found: {path}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(raw, list):
+            items = [x for x in raw if isinstance(x, dict)]
+    groups: dict[str, list[dict]] = {}
+    for it in items:
+        g = str(it.get("unit", "unit"))
+        groups.setdefault(g, []).append(it)
+    total_qty = sum(float(it.get("qty", 0) or 0) for it in items)
+    total_cost = sum((float(it.get("qty", 0) or 0) * float(it.get("cost", 0) or 0)) for it in items)
+    reorder_cost = 0.0
+    for it in items:
+        par = float(it.get("par", 0) or 0)
+        on_hand = float(it.get("onHand", 0) or 0)
+        cost = float(it.get("cost", 0) or 0)
+        reorder_cost += max(0.0, par - on_hand) * cost
+    lane_scale = math.log10(max(1.0, total_qty + len(items)))
+    group_lines = []
+    for key, sub_items in groups.items():
+        g_qty = sum(float(it.get("qty", 0) or 0) for it in sub_items)
+        g_cost = sum((float(it.get("qty", 0) or 0) * float(it.get("cost", 0) or 0)) for it in sub_items)
+        group_lines.append(f"├─ {key} ({len(sub_items)} items | qty={g_qty:.2f} | cost=${g_cost:.2f})")
+    return {
+        "root": root_clean,
+        "codecFamily": [".q", ".qbit", ".steno.map"],
+        "metrics": {
+            "items": len(items),
+            "totalQty": total_qty,
+            "totalCost": total_cost,
+            "reorderCost": reorder_cost,
+            "laneScaleLog10": lane_scale,
+            "qbitScaleScore": lane_scale * (1.0 + (len(items) / 10.0)),
+        },
+        "groups": {k: len(v) for k, v in groups.items()},
+        "treeText": "\n".join(
+            [
+                root_clean,
+                *group_lines,
+            ]
+        )
+        if group_lines
+        else root_clean,
+    }
+
+
+STENO_ZERO = "\u2008"
+STENO_ONE = "\u2009"
+
+
+def _codec_bytes_from_text(source: str, from_fmt: str) -> bytes:
+    fmt = from_fmt.strip().lower()
+    if fmt in {"ascii", "text", "utf8", "utf-8"}:
+        return source.encode("utf-8")
+    if fmt == "hex":
+        clean = "".join(ch for ch in source if ch.lower() in "0123456789abcdef")
+        if not clean:
+            return b""
+        if len(clean) % 2 != 0:
+            raise ValueError("hex input must contain an even number of digits")
+        return bytes.fromhex(clean)
+    if fmt in {"binary", "bin"}:
+        clean = "".join(ch for ch in source if ch in {"0", "1"})
+        if not clean:
+            return b""
+        if len(clean) % 8 != 0:
+            raise ValueError("binary input length must be a multiple of 8 bits")
+        return bytes(int(clean[i : i + 8], 2) for i in range(0, len(clean), 8))
+    if fmt == "steno":
+        bits = []
+        for ch in source:
+            if ch == STENO_ZERO:
+                bits.append("0")
+            elif ch == STENO_ONE:
+                bits.append("1")
+        if not bits:
+            raise ValueError("steno input has no steno space symbols")
+        bit_str = "".join(bits)
+        if len(bit_str) % 8 != 0:
+            raise ValueError("steno bit length must be a multiple of 8")
+        return bytes(int(bit_str[i : i + 8], 2) for i in range(0, len(bit_str), 8))
+    raise ValueError(f"unsupported from format '{from_fmt}'")
+
+
+def _codec_text_from_bytes(raw: bytes, to_fmt: str) -> str:
+    fmt = to_fmt.strip().lower()
+    if fmt in {"ascii", "text", "utf8", "utf-8"}:
+        return raw.decode("utf-8", errors="replace")
+    if fmt == "hex":
+        return raw.hex()
+    if fmt in {"binary", "bin"}:
+        return "".join(f"{b:08b}" for b in raw)
+    if fmt == "steno":
+        bits = "".join(f"{b:08b}" for b in raw)
+        return "".join(STENO_ONE if bit == "1" else STENO_ZERO for bit in bits)
+    raise ValueError(f"unsupported to format '{to_fmt}'")
+
+
+def _code_codec(
+    source_text: str | None,
+    from_fmt: str,
+    to_fmt: str,
+    input_file: str | None = None,
+    output_file: str | None = None,
+) -> dict:
+    source = source_text if source_text is not None else ""
+    if input_file:
+        source = Path(input_file).read_text(encoding="utf-8")
+    raw = _codec_bytes_from_text(source, from_fmt)
+    out = _codec_text_from_bytes(raw, to_fmt)
+    if output_file:
+        op = Path(output_file)
+        op.parent.mkdir(parents=True, exist_ok=True)
+        op.write_text(out, encoding="utf-8")
+    return {
+        "mode": "code.codec",
+        "from": from_fmt,
+        "to": to_fmt,
+        "inputLength": len(source),
+        "byteLength": len(raw),
+        "outputLength": len(out),
+        "output": out,
+        "outputVisible": out.encode("unicode_escape").decode("ascii"),
+        "saved": output_file,
+    }
 
 
 def _resolve_model(backend: str, model: str | None, family: str | None) -> str:
@@ -510,6 +777,280 @@ def _extract_time_sec(raw: dict) -> float:
         # Heuristic: values larger than year-2001 epoch-ms threshold are likely milliseconds.
         return ts / 1000.0 if ts > 1_000_000_000_000 else ts
     return 0.0
+
+
+def _parse_smpte_to_seconds(smpte: str, fps: float) -> float:
+    parts = [p.strip() for p in smpte.strip().split(":")]
+    if len(parts) != 4:
+        raise ValueError("smpte must be HH:MM:SS:FF")
+    hh, mm, ss, ff = [int(x) for x in parts]
+    if mm < 0 or mm > 59 or ss < 0 or ss > 59:
+        raise ValueError("smpte MM/SS must be in 0..59")
+    if ff < 0 or ff >= int(max(1.0, fps) + 1):
+        raise ValueError("smpte FF out of range for fps")
+    return (hh * 3600.0) + (mm * 60.0) + ss + (ff / max(1.0, fps))
+
+
+def _format_seconds_to_smpte(seconds: float, fps: float) -> str:
+    sec = max(0.0, float(seconds))
+    base = int(sec)
+    frac = sec - base
+    hh = base // 3600
+    mm = (base % 3600) // 60
+    ss = base % 60
+    ff = int(round(frac * max(1.0, fps)))
+    if ff >= int(max(1.0, fps)):
+        ff = 0
+        ss += 1
+        if ss >= 60:
+            ss = 0
+            mm += 1
+            if mm >= 60:
+                mm = 0
+                hh += 1
+    return f"{hh:02d}:{mm:02d}:{ss:02d}:{ff:02d}"
+
+
+def _time_convert(seconds: float | None, unix_ts: float | None, smpte: str | None, fps: float) -> dict:
+    if seconds is None and unix_ts is None and not smpte:
+        raise ValueError("provide one of --seconds, --unix, or --smpte")
+    if smpte:
+        sec = _parse_smpte_to_seconds(smpte, fps)
+    elif seconds is not None:
+        sec = float(seconds)
+    else:
+        sec = float(unix_ts)
+    unix_out = float(unix_ts) if unix_ts is not None else sec
+    iso = datetime.fromtimestamp(unix_out, tz=timezone.utc).isoformat()
+    return {
+        "input": {"seconds": seconds, "unix": unix_ts, "smpte": smpte, "fps": fps},
+        "seconds": sec,
+        "unix": unix_out,
+        "isoUtc": iso,
+        "smpte": _format_seconds_to_smpte(sec, fps),
+    }
+
+
+def _time_synclock(
+    reference_unix: float,
+    device_unix: float,
+    reference_end_unix: float | None,
+    device_end_unix: float | None,
+    max_drift_ppm: float,
+) -> dict:
+    offset_sec = float(device_unix) - float(reference_unix)
+    drift_ppm = 0.0
+    if reference_end_unix is not None and device_end_unix is not None:
+        ref_span = float(reference_end_unix) - float(reference_unix)
+        dev_span = float(device_end_unix) - float(device_unix)
+        if abs(ref_span) > 1e-9:
+            drift_ppm = ((dev_span - ref_span) / ref_span) * 1_000_000.0
+    status = "PASS" if abs(drift_ppm) <= max_drift_ppm else "WARN"
+    return {
+        "referenceUnix": reference_unix,
+        "deviceUnix": device_unix,
+        "offsetSec": offset_sec,
+        "offsetMs": offset_sec * 1000.0,
+        "driftPpm": drift_ppm,
+        "maxDriftPpm": max_drift_ppm,
+        "status": status,
+        "syncRecommendation": "clock-locked" if status == "PASS" else "recalibrate clock source",
+    }
+
+
+def _time_calibrate(
+    distance_m: float,
+    duration_sec: float,
+    mass_kg: float,
+    power_w: float,
+    clock_offset_ms: float,
+    clock_drift_ppm: float,
+) -> dict:
+    if duration_sec <= 0:
+        raise ValueError("duration_sec must be > 0")
+    v_ms = distance_m / duration_sec
+    v_kmh = v_ms * 3.6
+    v_mph = v_ms * 2.2369362921
+    kinetic_j = 0.5 * max(0.0, mass_kg) * v_ms * v_ms
+    input_energy_j = max(0.0, power_w) * duration_sec
+    eff = (kinetic_j / input_energy_j) if input_energy_j > 0 else 0.0
+    sync_corr_sec = (clock_offset_ms / 1000.0) + (duration_sec * (clock_drift_ppm / 1_000_000.0))
+    calibrated_duration = duration_sec - sync_corr_sec
+    calibrated_speed_ms = distance_m / calibrated_duration if calibrated_duration > 0 else 0.0
+    return {
+        "distanceM": distance_m,
+        "durationSec": duration_sec,
+        "speedMs": v_ms,
+        "speedKmh": v_kmh,
+        "speedMph": v_mph,
+        "massKg": mass_kg,
+        "kineticEnergyJ": kinetic_j,
+        "inputEnergyJ": input_energy_j,
+        "efficiencyRatio": eff,
+        "clock": {
+            "offsetMs": clock_offset_ms,
+            "driftPpm": clock_drift_ppm,
+            "syncCorrectionSec": sync_corr_sec,
+        },
+        "calibratedDurationSec": calibrated_duration,
+        "calibratedSpeedMs": calibrated_speed_ms,
+    }
+
+
+def _jawbreaker_speed_race(
+    distance_m: float,
+    laps: int,
+    splits_csv: str,
+    fps: float,
+    reference_unix: float | None,
+    device_unix: float | None,
+) -> dict:
+    splits = [float(x.strip()) for x in splits_csv.split(",") if x.strip()]
+    if not splits:
+        raise ValueError("splits must contain at least one lap time")
+    laps_n = max(1, int(laps))
+    total_sec = sum(splits)
+    avg_lap = statistics.mean(splits)
+    best_lap = min(splits)
+    worst_lap = max(splits)
+    distance_total = max(0.0, float(distance_m)) * laps_n
+    avg_speed_ms = distance_total / total_sec if total_sec > 0 else 0.0
+    sync = None
+    if reference_unix is not None and device_unix is not None:
+        sync = _time_synclock(reference_unix, device_unix, None, None, 50.0)
+    return {
+        "mode": "jawbreaker-speed-race",
+        "laps": laps_n,
+        "lapDistanceM": float(distance_m),
+        "totalDistanceM": distance_total,
+        "splitsSec": splits,
+        "totalTimeSec": total_sec,
+        "totalTimeSmpte": _format_seconds_to_smpte(total_sec, fps),
+        "avgLapSec": avg_lap,
+        "bestLapSec": best_lap,
+        "worstLapSec": worst_lap,
+        "avgSpeedMs": avg_speed_ms,
+        "avgSpeedKmh": avg_speed_ms * 3.6,
+        "avgSpeedMph": avg_speed_ms * 2.2369362921,
+        "sync": sync,
+    }
+
+
+NOTE_INDEX = {"C": 0, "C#": 1, "DB": 1, "D": 2, "D#": 3, "EB": 3, "E": 4, "F": 5, "F#": 6, "GB": 6, "G": 7, "G#": 8, "AB": 8, "A": 9, "A#": 10, "BB": 10, "B": 11}
+NOTE_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def _note_to_midi(note: str) -> int:
+    s = note.strip().upper()
+    if len(s) < 2:
+        raise ValueError(f"invalid note '{note}'")
+    head = s[0]
+    accidental = ""
+    octave_part = s[1:]
+    if len(s) >= 3 and s[1] in {"#", "B"}:
+        accidental = s[1]
+        octave_part = s[2:]
+    key = f"{head}{accidental}"
+    if key not in NOTE_INDEX:
+        raise ValueError(f"invalid note key '{note}'")
+    octave = int(octave_part)
+    midi = (octave + 1) * 12 + NOTE_INDEX[key]
+    if midi < 0 or midi > 127:
+        raise ValueError(f"midi note out of range for '{note}'")
+    return midi
+
+
+def _midi_to_note(midi: int) -> str:
+    m = max(0, min(127, int(midi)))
+    octave = (m // 12) - 1
+    return f"{NOTE_SHARP[m % 12]}{octave}"
+
+
+def _midi_to_freq(midi: int, a4_hz: float = 440.0) -> float:
+    return float(a4_hz) * (2.0 ** ((int(midi) - 69) / 12.0))
+
+
+def _music_transpose(notes: str, semitones: int, key: str) -> dict:
+    src = [n.strip() for n in notes.replace("\n", ",").split(",") if n.strip()]
+    if not src:
+        raise ValueError("notes list is empty")
+    out = []
+    for n in src:
+        m = _note_to_midi(n)
+        mt = max(0, min(127, m + int(semitones)))
+        out.append(
+            {
+                "input": n,
+                "midi": m,
+                "transposedMidi": mt,
+                "transposed": _midi_to_note(mt),
+                "freqHz": _midi_to_freq(m),
+                "transposedFreqHz": _midi_to_freq(mt),
+            }
+        )
+    return {
+        "mode": "music.transpose",
+        "key": key.strip() or "C",
+        "semitones": int(semitones),
+        "notesIn": src,
+        "notesOut": [x["transposed"] for x in out],
+        "mapping": out,
+    }
+
+
+def _music_binaural(base_hz: float, beat_hz: float, duration_sec: float) -> dict:
+    base = max(1.0, float(base_hz))
+    beat = max(0.01, float(beat_hz))
+    left = base - (beat / 2.0)
+    right = base + (beat / 2.0)
+    return {
+        "mode": "music.binaural",
+        "baseHz": base,
+        "beatHz": beat,
+        "leftHz": left,
+        "rightHz": right,
+        "durationSec": max(0.0, float(duration_sec)),
+        "signalFlow": f"oscL({left:.3f}Hz) -> panL, oscR({right:.3f}Hz) -> panR, binauralBeat={beat:.3f}Hz",
+    }
+
+
+def _music_daw_sync(
+    bpm: float,
+    sample_rate: int,
+    buffer_size: int,
+    ppq: int,
+    bars: int,
+    start_unix: float | None,
+    fps: float,
+) -> dict:
+    bpm_v = max(1e-6, float(bpm))
+    sr = max(1, int(sample_rate))
+    buf = max(1, int(buffer_size))
+    ppq_v = max(1, int(ppq))
+    bars_v = max(1, int(bars))
+    beat_sec = 60.0 / bpm_v
+    bar_sec = beat_sec * 4.0
+    total_sec = bar_sec * bars_v
+    samples_per_beat = beat_sec * sr
+    buffers_per_beat = samples_per_beat / buf
+    ticks_per_sec = (bpm_v * ppq_v) / 60.0
+    started = float(start_unix) if start_unix is not None else float(time.time())
+    return {
+        "mode": "music.daw-sync",
+        "bpm": bpm_v,
+        "sampleRate": sr,
+        "bufferSize": buf,
+        "ppq": ppq_v,
+        "bars": bars_v,
+        "beatSec": beat_sec,
+        "barSec": bar_sec,
+        "totalSec": total_sec,
+        "samplesPerBeat": samples_per_beat,
+        "buffersPerBeat": buffers_per_beat,
+        "ticksPerSec": ticks_per_sec,
+        "startUnix": started,
+        "startSmpte": _format_seconds_to_smpte(started, fps),
+    }
 
 
 def _phase_for_time(
@@ -841,6 +1382,74 @@ def _chunk_telemetry_alert(args: argparse.Namespace) -> dict:
     }
 
 
+def _chunk_time_synclock(args: argparse.Namespace) -> dict:
+    report = _time_synclock(
+        reference_unix=float(args.reference_unix),
+        device_unix=float(args.device_unix),
+        reference_end_unix=float(args.reference_end_unix) if args.reference_end_unix is not None else None,
+        device_end_unix=float(args.device_end_unix) if args.device_end_unix is not None else None,
+        max_drift_ppm=float(args.max_drift_ppm),
+    )
+    return {"chunk": "time.synclock", **report}
+
+
+def _chunk_time_calibration(args: argparse.Namespace) -> dict:
+    if args.duration_sec is None:
+        raise ValueError("time.calibration requires --duration-sec")
+    report = _time_calibrate(
+        distance_m=float(args.distance_m),
+        duration_sec=float(args.duration_sec),
+        mass_kg=float(args.mass_kg),
+        power_w=float(args.power_w),
+        clock_offset_ms=float(args.clock_offset_ms),
+        clock_drift_ppm=float(args.clock_drift_ppm),
+    )
+    return {"chunk": "time.calibration", **report}
+
+
+def _chunk_jawbreaker_race(args: argparse.Namespace) -> dict:
+    report = _jawbreaker_speed_race(
+        distance_m=float(args.distance_m),
+        laps=int(args.laps),
+        splits_csv=str(args.splits),
+        fps=float(args.fps),
+        reference_unix=float(args.reference_unix) if args.reference_unix is not None else None,
+        device_unix=float(args.device_unix) if args.device_unix is not None else None,
+    )
+    return {"chunk": "jawbreaker.race", **report}
+
+
+def _chunk_music_transpose(args: argparse.Namespace) -> dict:
+    report = _music_transpose(
+        notes=str(args.notes or ""),
+        semitones=int(args.semitones),
+        key=str(args.key or "C"),
+    )
+    return {"chunk": "music.transpose", **report}
+
+
+def _chunk_music_dawsync(args: argparse.Namespace) -> dict:
+    report = _music_daw_sync(
+        bpm=float(args.bpm),
+        sample_rate=int(args.sample_rate),
+        buffer_size=int(args.buffer_size),
+        ppq=int(args.ppq),
+        bars=int(args.bars),
+        start_unix=float(args.start_unix) if args.start_unix is not None else None,
+        fps=float(args.fps),
+    )
+    return {"chunk": "music.dawsync", **report}
+
+
+def _chunk_music_binaural(args: argparse.Namespace) -> dict:
+    report = _music_binaural(
+        base_hz=float(args.base_hz),
+        beat_hz=float(args.beat_hz),
+        duration_sec=float(args.duration_sec or 0.0),
+    )
+    return {"chunk": "music.binaural", **report}
+
+
 def _build_quantum_preset_program(preset: str, qubits: int, marked_state: str) -> str:
     p = preset.lower().strip()
     if p == "bell":
@@ -906,6 +1515,18 @@ def _run_chunk_by_id(chunk_id: str, args: argparse.Namespace) -> dict:
         return _chunk_telemetry_plot(args)
     if chunk_id == "telemetry.stream":
         return _chunk_telemetry_stream(args)
+    if chunk_id == "time.synclock":
+        return _chunk_time_synclock(args)
+    if chunk_id == "time.calibration":
+        return _chunk_time_calibration(args)
+    if chunk_id == "jawbreaker.race":
+        return _chunk_jawbreaker_race(args)
+    if chunk_id == "music.transpose":
+        return _chunk_music_transpose(args)
+    if chunk_id == "music.dawsync":
+        return _chunk_music_dawsync(args)
+    if chunk_id == "music.binaural":
+        return _chunk_music_binaural(args)
     if chunk_id == "quantum.preset":
         return _chunk_quantum_preset(args)
     if chunk_id == "quantum.algorithm":
@@ -1818,6 +2439,39 @@ def main() -> int:
         help="Backend inventory scope (default: all)",
     )
 
+    erika = sub.add_parser("erika", help="Call erika.qbitos.ai tools and Codex API")
+    erika_sub = erika.add_subparsers(dest="erika_cmd", required=True)
+    erika_health = erika_sub.add_parser("health", help="Get erika API health")
+    erika_health.add_argument("--base", default=ERIKA_BASE, help="Override API base URL")
+    erika_integration = erika_sub.add_parser("integration", help="Get integration feature flags")
+    erika_integration.add_argument("--base", default=ERIKA_BASE, help="Override API base URL")
+    erika_plans = erika_sub.add_parser("plans", help="Get pricing plans")
+    erika_plans.add_argument("--base", default=ERIKA_BASE, help="Override API base URL")
+    erika_tools = erika_sub.add_parser("tools", help="List API-exposed Freya tools (requires API key)")
+    erika_tools.add_argument("--base", default=ERIKA_BASE, help="Override API base URL")
+    erika_run = erika_sub.add_parser("run", help="Execute a whitelisted Freya tool through erika API")
+    erika_run.add_argument("--base", default=ERIKA_BASE, help="Override API base URL")
+    erika_run.add_argument("--tool", required=True, help="Tool id, e.g. math.expr or market.convert")
+    erika_run.add_argument("--args-json", default="{}", help='Tool args JSON object, e.g. \'{"expression":"1+1"}\'')
+    erika_chart = erika_sub.add_parser("chart-data", help="Get Codex chart data via API")
+    erika_chart.add_argument("--base", default=ERIKA_BASE, help="Override API base URL")
+    erika_chart.add_argument("--subject-json", required=True, help="Subject JSON object")
+    erika_chart.add_argument("--theme", default="dark")
+    erika_chart.add_argument("--language", default="EN")
+    erika_chart.add_argument("--custom-title", default="Freya Codex")
+    erika_context = erika_sub.add_parser("context", help="Get Codex context XML via API")
+    erika_context.add_argument("--base", default=ERIKA_BASE, help="Override API base URL")
+    erika_context.add_argument("--subject-json", required=True, help="Subject JSON object")
+    erika_context.add_argument("--theme", default="dark")
+    erika_context.add_argument("--language", default="EN")
+    erika_context.add_argument("--custom-title", default="Freya Codex")
+    erika_split = erika_sub.add_parser("split-chart", help="Get split chart SVG payload via API")
+    erika_split.add_argument("--base", default=ERIKA_BASE, help="Override API base URL")
+    erika_split.add_argument("--subject-json", required=True, help="Subject JSON object")
+    erika_split.add_argument("--theme", default="dark")
+    erika_split.add_argument("--language", default="EN")
+    erika_split.add_argument("--custom-title", default="Freya Codex")
+
     market = sub.add_parser("market", help="Fiat/crypto conversion and stock/crypto quotes")
     market_sub = market.add_subparsers(dest="market_cmd", required=True)
     market_convert = market_sub.add_parser("convert", help="Convert between fiat/crypto symbols")
@@ -1827,6 +2481,76 @@ def main() -> int:
     market_quote = market_sub.add_parser("quote", help="Get quote for stock or crypto symbol")
     market_quote.add_argument("--symbol", required=True, help="Ticker or crypto symbol, e.g. AAPL or BTC")
     market_quote.add_argument("--market", choices=["stock", "crypto"], default="stock")
+
+    code = sub.add_parser("code", help="HexCast QR generator and ISBN/barcode lookup")
+    code_sub = code.add_subparsers(dest="code_cmd", required=True)
+    qr_cmd = code_sub.add_parser("qr", help="Generate QR payload and optionally save PNG")
+    qr_cmd.add_argument("--text", required=True, help="QR content text")
+    qr_cmd.add_argument("--size", type=int, default=320, help="QR size in pixels")
+    qr_cmd.add_argument("--out", default=None, help="Optional output PNG path")
+    lookup_cmd = code_sub.add_parser("lookup", help="Lookup ISBN/barcode across major data sources")
+    lookup_cmd.add_argument("--code", required=True, help="ISBN/UPC/EAN code")
+    codec_cmd = code_sub.add_parser("codec", help="Convert across ascii/hex/binary/steno")
+    codec_cmd.add_argument("--from", dest="from_fmt", choices=["ascii", "hex", "binary", "steno"], required=True)
+    codec_cmd.add_argument("--to", dest="to_fmt", choices=["ascii", "hex", "binary", "steno"], required=True)
+    codec_cmd.add_argument("--text", default=None, help="Inline input text")
+    codec_cmd.add_argument("--input-file", default=None, help="Optional input text file path")
+    codec_cmd.add_argument("--output-file", default=None, help="Optional output text file path")
+    quicklist_cmd = code_sub.add_parser("quicklist", help="Build ingredient quick list from scanned codes")
+    quicklist_cmd.add_argument("--codes", required=True, help="Comma-separated ISBN/EAN/UPC list")
+    dam_tree_cmd = code_sub.add_parser("dam-tree", help="Build DAM organization tree for .q/.qbit family")
+    dam_tree_cmd.add_argument("--root", default="kbatch/ingredients", help="DAM root node")
+    dam_tree_cmd.add_argument("--input-json", default=None, help="Optional ingredient JSON input list")
+
+    time_cmd = sub.add_parser("time", help="SMPTE/Unix/synclock timing tools + jawbreaker race helpers")
+    time_sub = time_cmd.add_subparsers(dest="time_cmd", required=True)
+    time_convert = time_sub.add_parser("convert", help="Convert between seconds, unix epoch, and SMPTE")
+    time_convert.add_argument("--seconds", type=float, default=None, help="Seconds value")
+    time_convert.add_argument("--unix", dest="unix_ts", type=float, default=None, help="Unix epoch seconds")
+    time_convert.add_argument("--smpte", default=None, help="SMPTE HH:MM:SS:FF")
+    time_convert.add_argument("--fps", type=float, default=30.0, help="Frame rate for SMPTE conversion")
+
+    time_sync = time_sub.add_parser("synclock", help="Compute sync clock offset and drift")
+    time_sync.add_argument("--reference-unix", type=float, required=True)
+    time_sync.add_argument("--device-unix", type=float, required=True)
+    time_sync.add_argument("--reference-end-unix", type=float, default=None)
+    time_sync.add_argument("--device-end-unix", type=float, default=None)
+    time_sync.add_argument("--max-drift-ppm", type=float, default=50.0)
+
+    time_cal = time_sub.add_parser("calibrate", help="Energy/speed/time calibration with clock correction")
+    time_cal.add_argument("--distance-m", type=float, required=True)
+    time_cal.add_argument("--duration-sec", type=float, required=True)
+    time_cal.add_argument("--mass-kg", type=float, default=0.0)
+    time_cal.add_argument("--power-w", type=float, default=0.0)
+    time_cal.add_argument("--clock-offset-ms", type=float, default=0.0)
+    time_cal.add_argument("--clock-drift-ppm", type=float, default=0.0)
+
+    time_jawbreaker = time_sub.add_parser("jawbreaker-race", help="Jawbreaker speed race timing report")
+    time_jawbreaker.add_argument("--distance-m", type=float, default=402.336, help="Lap distance in meters")
+    time_jawbreaker.add_argument("--laps", type=int, default=1)
+    time_jawbreaker.add_argument("--splits", required=True, help="Comma-separated lap split seconds")
+    time_jawbreaker.add_argument("--fps", type=float, default=30.0)
+    time_jawbreaker.add_argument("--reference-unix", type=float, default=None)
+    time_jawbreaker.add_argument("--device-unix", type=float, default=None)
+
+    music_cmd = sub.add_parser("music", help="Live transpose, DAW sync, and binaural oscillator calculations")
+    music_sub = music_cmd.add_subparsers(dest="music_cmd", required=True)
+    music_transpose = music_sub.add_parser("transpose", help="Transpose note list by semitones")
+    music_transpose.add_argument("--notes", required=True, help="Comma-separated notes, e.g. C4,E4,G4")
+    music_transpose.add_argument("--semitones", type=int, required=True, help="Semitone shift")
+    music_transpose.add_argument("--key", default="C", help="Reference key label")
+    music_binaural = music_sub.add_parser("binaural", help="Build binaural L/R frequency pair")
+    music_binaural.add_argument("--base-hz", type=float, required=True)
+    music_binaural.add_argument("--beat-hz", type=float, required=True)
+    music_binaural.add_argument("--duration-sec", type=float, default=60.0)
+    music_daw = music_sub.add_parser("daw-sync", help="Compute DAW timing sync metrics")
+    music_daw.add_argument("--bpm", type=float, required=True)
+    music_daw.add_argument("--sample-rate", type=int, default=48000)
+    music_daw.add_argument("--buffer-size", type=int, default=256)
+    music_daw.add_argument("--ppq", type=int, default=960)
+    music_daw.add_argument("--bars", type=int, default=8)
+    music_daw.add_argument("--start-unix", type=float, default=None)
+    music_daw.add_argument("--fps", type=float, default=30.0)
 
     telemetry = sub.add_parser("telemetry", help="Live launch-style telemetry calculations")
     telemetry.add_argument("--duration-sec", type=float, default=60.0)
@@ -1941,6 +2665,34 @@ def main() -> int:
     chunk_run.add_argument("--bench-file", default="bench/results.jsonl")
     chunk_run.add_argument("--actual", default=None)
     chunk_run.add_argument("--format", choices=["auto", "csv", "json", "jsonl"], default="auto")
+    chunk_run.add_argument("--seconds", type=float, default=None)
+    chunk_run.add_argument("--unix", dest="unix_ts", type=float, default=None)
+    chunk_run.add_argument("--smpte", default=None)
+    chunk_run.add_argument("--fps", type=float, default=30.0)
+    chunk_run.add_argument("--reference-unix", type=float, default=None)
+    chunk_run.add_argument("--device-unix", type=float, default=None)
+    chunk_run.add_argument("--reference-end-unix", type=float, default=None)
+    chunk_run.add_argument("--device-end-unix", type=float, default=None)
+    chunk_run.add_argument("--max-drift-ppm", type=float, default=50.0)
+    chunk_run.add_argument("--distance-m", type=float, default=402.336)
+    chunk_run.add_argument("--duration-sec", type=float, default=None)
+    chunk_run.add_argument("--mass-kg", type=float, default=0.0)
+    chunk_run.add_argument("--power-w", type=float, default=0.0)
+    chunk_run.add_argument("--clock-offset-ms", type=float, default=0.0)
+    chunk_run.add_argument("--clock-drift-ppm", type=float, default=0.0)
+    chunk_run.add_argument("--laps", type=int, default=1)
+    chunk_run.add_argument("--splits", default="")
+    chunk_run.add_argument("--notes", default="")
+    chunk_run.add_argument("--semitones", type=int, default=0)
+    chunk_run.add_argument("--key", default="C")
+    chunk_run.add_argument("--base-hz", type=float, default=220.0)
+    chunk_run.add_argument("--beat-hz", type=float, default=8.0)
+    chunk_run.add_argument("--bpm", type=float, default=120.0)
+    chunk_run.add_argument("--sample-rate", type=int, default=48000)
+    chunk_run.add_argument("--buffer-size", type=int, default=256)
+    chunk_run.add_argument("--ppq", type=int, default=960)
+    chunk_run.add_argument("--bars", type=int, default=8)
+    chunk_run.add_argument("--start-unix", type=float, default=None)
 
     chunk_scaffold = chunk_sub.add_parser("scaffold", help="Create extendable chunk metadata template")
     chunk_scaffold.add_argument("--id", required=True, help="Chunk id, e.g. custom.my-router")
@@ -1980,6 +2732,77 @@ def main() -> int:
     if args.cmd == "models":
         print(json.dumps(models_inventory(args.backend), indent=2))
         return 0
+    if args.cmd == "erika":
+        try:
+            base = str(args.base).rstrip("/")
+            if args.erika_cmd == "health":
+                print(json.dumps(_get_json(f"{base}/health", timeout=45), indent=2))
+                return 0
+            if args.erika_cmd == "integration":
+                print(json.dumps(_get_json(f"{base}/api/v1/system/integration", timeout=45), indent=2))
+                return 0
+            if args.erika_cmd == "plans":
+                print(json.dumps(_get_json(f"{base}/api/v1/pay/plans", timeout=45), indent=2))
+                return 0
+            if args.erika_cmd == "tools":
+                print(
+                    json.dumps(
+                        _get_json(
+                            f"{base}/api/v1/freya/tools",
+                            headers=_erika_headers(require_key=True),
+                            timeout=45,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.erika_cmd == "run":
+                tool_args = json.loads(args.args_json)
+                if not isinstance(tool_args, dict):
+                    raise ValueError("--args-json must decode to an object")
+                print(
+                    json.dumps(
+                        _post_json(
+                            f"{base}/api/v1/freya/run",
+                            {"tool": str(args.tool), "args": tool_args},
+                            headers=_erika_headers(require_key=True),
+                            timeout=90,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.erika_cmd in {"chart-data", "context", "split-chart"}:
+                subject = json.loads(args.subject_json)
+                if not isinstance(subject, dict):
+                    raise ValueError("--subject-json must decode to an object")
+                payload = {
+                    "subject": subject,
+                    "theme": str(args.theme),
+                    "language": str(args.language),
+                    "custom_title": str(args.custom_title),
+                }
+                endpoint = {
+                    "chart-data": "/api/v1/codex/chart-data",
+                    "context": "/api/v1/codex/context",
+                    "split-chart": "/api/v1/codex/split-chart",
+                }[args.erika_cmd]
+                print(
+                    json.dumps(
+                        _post_json(
+                            f"{base}{endpoint}",
+                            payload,
+                            headers=_erika_headers(require_key=True),
+                            timeout=90,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
     if args.cmd == "market":
         try:
             if args.market_cmd == "convert":
@@ -1996,6 +2819,149 @@ def main() -> int:
                 return 0
             if args.market_cmd == "quote":
                 print(json.dumps(_market_quote(symbol=str(args.symbol), market=str(args.market)), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "code":
+        try:
+            if args.code_cmd == "qr":
+                print(json.dumps(_code_qr(text=str(args.text), size=int(args.size), out=args.out), indent=2))
+                return 0
+            if args.code_cmd == "lookup":
+                print(json.dumps(_code_lookup(str(args.code)), indent=2))
+                return 0
+            if args.code_cmd == "codec":
+                print(
+                    json.dumps(
+                        _code_codec(
+                            source_text=args.text,
+                            from_fmt=str(args.from_fmt),
+                            to_fmt=str(args.to_fmt),
+                            input_file=args.input_file,
+                            output_file=args.output_file,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.code_cmd == "quicklist":
+                print(json.dumps(_code_quicklist(str(args.codes)), indent=2))
+                return 0
+            if args.code_cmd == "dam-tree":
+                print(json.dumps(_code_dam_tree(str(args.root), args.input_json), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "time":
+        try:
+            if args.time_cmd == "convert":
+                print(
+                    json.dumps(
+                        _time_convert(
+                            seconds=args.seconds,
+                            unix_ts=args.unix_ts,
+                            smpte=args.smpte,
+                            fps=float(args.fps),
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.time_cmd == "synclock":
+                print(
+                    json.dumps(
+                        _time_synclock(
+                            reference_unix=float(args.reference_unix),
+                            device_unix=float(args.device_unix),
+                            reference_end_unix=float(args.reference_end_unix)
+                            if args.reference_end_unix is not None
+                            else None,
+                            device_end_unix=float(args.device_end_unix) if args.device_end_unix is not None else None,
+                            max_drift_ppm=float(args.max_drift_ppm),
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.time_cmd == "calibrate":
+                print(
+                    json.dumps(
+                        _time_calibrate(
+                            distance_m=float(args.distance_m),
+                            duration_sec=float(args.duration_sec),
+                            mass_kg=float(args.mass_kg),
+                            power_w=float(args.power_w),
+                            clock_offset_ms=float(args.clock_offset_ms),
+                            clock_drift_ppm=float(args.clock_drift_ppm),
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.time_cmd == "jawbreaker-race":
+                print(
+                    json.dumps(
+                        _jawbreaker_speed_race(
+                            distance_m=float(args.distance_m),
+                            laps=int(args.laps),
+                            splits_csv=str(args.splits),
+                            fps=float(args.fps),
+                            reference_unix=float(args.reference_unix) if args.reference_unix is not None else None,
+                            device_unix=float(args.device_unix) if args.device_unix is not None else None,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "music":
+        try:
+            if args.music_cmd == "transpose":
+                print(
+                    json.dumps(
+                        _music_transpose(
+                            notes=str(args.notes),
+                            semitones=int(args.semitones),
+                            key=str(args.key),
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.music_cmd == "binaural":
+                print(
+                    json.dumps(
+                        _music_binaural(
+                            base_hz=float(args.base_hz),
+                            beat_hz=float(args.beat_hz),
+                            duration_sec=float(args.duration_sec),
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            if args.music_cmd == "daw-sync":
+                print(
+                    json.dumps(
+                        _music_daw_sync(
+                            bpm=float(args.bpm),
+                            sample_rate=int(args.sample_rate),
+                            buffer_size=int(args.buffer_size),
+                            ppq=int(args.ppq),
+                            bars=int(args.bars),
+                            start_unix=float(args.start_unix) if args.start_unix is not None else None,
+                            fps=float(args.fps),
+                        ),
+                        indent=2,
+                    )
+                )
                 return 0
             return 1
         except Exception as exc:  # noqa: BLE001

@@ -615,6 +615,7 @@
         <!-- ═══ NAVIGATION ═══ -->
         <nav class="nav-tabs" id="nav-tabs">
             <button class="nav-tab active" data-tab="convert">⇄ Convert</button>
+            <button class="nav-tab" data-tab="music">♫ Music</button>
             <button class="nav-tab" data-tab="calc">∫ Calculator</button>
             <button class="nav-tab" data-tab="celestial">✦ Celestial</button>
             <button class="nav-tab" data-tab="codex">◎ Codex</button>
@@ -625,13 +626,14 @@
             <button class="nav-tab" data-tab="recipes">🍳 Recipes</button>
         </nav>
         <div class="quick-prompt">
-            <div class="quick-prompt-title">Freya Quick Prompt (convert / recipe / list / long math)</div>
+            <div class="quick-prompt-title">Freya AI Prompt Composer (conversion / ops / codex / planning)</div>
             <div class="quick-prompt-row">
-                <input id="quick-prompt-input" class="quick-prompt-input" placeholder="Describe what to convert or expand quickly...">
-                <button class="quick-prompt-chip" data-qmode="convert">Convert</button>
-                <button class="quick-prompt-chip" data-qmode="recipe">Recipe</button>
-                <button class="quick-prompt-chip" data-qmode="list">List</button>
-                <button class="quick-prompt-chip" data-qmode="math">Long Math</button>
+                <input id="quick-prompt-input" class="quick-prompt-input" placeholder="Describe mission intent, inputs, constraints, and expected output schema...">
+                <button class="quick-prompt-chip" data-qmode="convert">AI Convert</button>
+                <button class="quick-prompt-chip" data-qmode="recipe">AI Recipe</button>
+                <button class="quick-prompt-chip" data-qmode="list">AI Ops List</button>
+                <button class="quick-prompt-chip" data-qmode="math">AI Long Math</button>
+                <button class="quick-prompt-chip" data-qmode="codex">AI Codex</button>
                 <button class="quick-prompt-chip" id="quick-prompt-copy">Copy Prompt</button>
             </div>
         </div>
@@ -681,6 +683,43 @@
             <div class="card">
                 <div class="card-title"><span class="icon">📋</span> Conversion Table</div>
                 <div class="conv-table" id="conv-table"></div>
+            </div>
+
+            <div class="card card-light">
+                <div class="card-title"><span class="icon">⌘</span> Data Codec Lane (Steno / Hex / ASCII / Binary)</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:8px;">
+                    Live codec lane for Data workflows. Converts across ascii, hex, binary, and steno space-symbol encoding.
+                </div>
+                <div class="food-grid">
+                    <div>
+                        <label class="convert-label">From</label>
+                        <select id="data-codec-from">
+                            <option value="ascii">ascii</option>
+                            <option value="hex">hex</option>
+                            <option value="binary">binary</option>
+                            <option value="steno">steno</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="convert-label">To</label>
+                        <select id="data-codec-to">
+                            <option value="hex">hex</option>
+                            <option value="ascii">ascii</option>
+                            <option value="binary">binary</option>
+                            <option value="steno">steno</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="convert-label" style="margin-top:8px;display:block;">Input</label>
+                <textarea id="data-codec-input" class="calc-input" style="min-height:72px;" placeholder="Enter text/hex/binary/steno input"></textarea>
+                <div class="quick-row" style="margin-top:8px;">
+                    <button class="quick-btn" id="data-codec-run">Convert</button>
+                    <button class="quick-btn" id="data-codec-swap">Swap</button>
+                    <button class="quick-btn" id="data-codec-copy">Copy Output</button>
+                    <button class="quick-btn" id="data-codec-copy-cli">Copy Codec CLI</button>
+                </div>
+                <div class="food-output" id="data-codec-status">Codec lane ready.</div>
+                <pre class="dither-output" id="data-codec-output"></pre>
             </div>
 
             <!-- Quantum/wave properties -->
@@ -798,6 +837,61 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
         </div>
 
         <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 1B: MUSIC                           -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section" id="sec-music">
+            <div class="card card-light">
+                <div class="card-title"><span class="icon">♫</span> Live Transpose + DAW Sync + Binaural Oscillator</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:8px;">
+                    FreyaUnits + kbatch music lane: transpose note streams, compute DAW sync clocks, and drive binaural oscillator flow.
+                </div>
+                <div class="food-grid">
+                    <div>
+                        <label class="convert-label">Notes (CSV)</label>
+                        <input id="music-notes" type="text" value="C4,E4,G4,B4">
+                    </div>
+                    <div>
+                        <label class="convert-label">Transpose (semitones)</label>
+                        <input id="music-semitones" type="number" step="1" value="0">
+                    </div>
+                    <div>
+                        <label class="convert-label">Key</label>
+                        <input id="music-key" type="text" value="C">
+                    </div>
+                    <div>
+                        <label class="convert-label">BPM</label>
+                        <input id="music-bpm" type="number" step="any" value="120">
+                    </div>
+                    <div>
+                        <label class="convert-label">Sample Rate</label>
+                        <input id="music-sample-rate" type="number" step="1" value="48000">
+                    </div>
+                    <div>
+                        <label class="convert-label">Buffer Size</label>
+                        <input id="music-buffer-size" type="number" step="1" value="256">
+                    </div>
+                    <div>
+                        <label class="convert-label">Base Hz</label>
+                        <input id="music-base-hz" type="number" step="any" value="220">
+                    </div>
+                    <div>
+                        <label class="convert-label">Beat Hz (binaural delta)</label>
+                        <input id="music-beat-hz" type="number" step="any" value="8">
+                    </div>
+                </div>
+                <div class="quick-row" style="margin-top:10px;">
+                    <button class="quick-btn" id="music-transpose-run">Run Transpose</button>
+                    <button class="quick-btn" id="music-daw-sync-run">Compute DAW Sync</button>
+                    <button class="quick-btn" id="music-osc-start">Start Binaural Osc</button>
+                    <button class="quick-btn" id="music-osc-stop">Stop Osc</button>
+                    <button class="quick-btn" id="music-copy-cli">Copy Music CLI</button>
+                    <button class="quick-btn" id="music-broadcast-kbatch">Broadcast kbatch</button>
+                </div>
+                <div class="food-output" id="music-output">Music lane ready.</div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
         <!-- SECTION 2: CALCULATOR                       -->
         <!-- ════════════════════════════════════════════ -->
         <div class="section" id="sec-calc">
@@ -864,6 +958,38 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
                     <button class="btn" id="codex-gates" style="font-size:0.6875rem">Gate Map</button>
                     <button class="btn" id="codex-sync" style="font-size:0.6875rem">Sync Globe</button>
                 </div>
+                <div class="food-grid" style="margin-top:8px;">
+                    <div>
+                        <label class="convert-label">Theme</label>
+                        <select id="codex-theme">
+                            <option value="dark" selected>dark</option>
+                            <option value="light">light</option>
+                            <option value="dark-high-contrast">dark-high-contrast</option>
+                            <option value="classic">classic</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="convert-label">Language</label>
+                        <select id="codex-language">
+                            <option value="EN" selected>EN</option>
+                            <option value="IT">IT</option>
+                            <option value="ES">ES</option>
+                            <option value="FR">FR</option>
+                            <option value="DE">DE</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="convert-label">Chart Title</label>
+                        <input id="codex-custom-title" type="text" value="Freya Quantum Codex">
+                    </div>
+                </div>
+                <div class="quick-row" style="margin-top:8px;">
+                    <button class="quick-btn" id="codex-ai-context">Generate AI Context XML</button>
+                    <button class="quick-btn" id="codex-split-export">Split Wheel/Grid Export</button>
+                    <button class="quick-btn" id="codex-export-json">Export Codex JSON</button>
+                    <button class="quick-btn" id="codex-copy-api-template">Copy API Template</button>
+                </div>
+                <div class="food-output" id="codex-output">Codex Pro lane ready.</div>
             </div>
             <div class="card">
                 <div class="card-title"><span class="icon">⊕</span> Houses — Iron Line Mapping</div>
@@ -929,8 +1055,33 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
                     <label class="quick-btn" style="display:flex;align-items:center;justify-content:center;gap:6px;">
                         <input type="checkbox" id="dither-invert"> invert
                     </label>
+                    <input type="text" id="dither-qr-text" placeholder="QR text/content (url, menu, item id)">
+                    <input type="number" id="dither-qr-size" min="96" max="1024" value="320" placeholder="QR size">
+                    <button class="quick-btn" id="dither-qr-generate">Generate QR</button>
+                    <button class="quick-btn" id="dither-copy-qr-cli">Copy QR CLI</button>
+                    <input type="text" id="dither-isbn-code" placeholder="Scan/enter ISBN/EAN/UPC (IR scanner OK)">
+                    <button class="quick-btn" id="dither-lookup">Lookup Barcode</button>
+                    <button class="quick-btn" id="dither-copy-lookup-cli">Copy Lookup CLI</button>
+                    <input type="file" id="dither-photo-file" accept="image/*" capture="environment">
+                    <button class="quick-btn" id="dither-photo-scan">Photo Scan</button>
+                    <button class="quick-btn" id="dither-camera-start">Start Camera Scan</button>
+                    <button class="quick-btn" id="dither-camera-stop">Stop Camera</button>
+                    <button class="quick-btn" id="dither-add-ingredient">Add Lookup -> Ingredients</button>
+                    <button class="quick-btn" id="dither-quicklist-generate">Generate Quick List</button>
+                    <button class="quick-btn" id="dither-quicklist-copy">Copy Quick List</button>
                 </div>
                 <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;" id="dither-status">No file loaded yet. Upload an image to render.</div>
+                <div class="food-output" id="dither-qr-output">QR ready: none</div>
+                <div class="food-output" id="dither-lookup-output">Barcode lookup ready: none</div>
+                <video id="dither-camera-preview" autoplay playsinline muted style="width:100%;max-width:320px;border:1px solid var(--border);border-radius:8px;display:none;margin:8px 0;"></video>
+                <div class="food-output" id="dither-quicklist-output">Quick list ready: none</div>
+                <div class="quick-row" style="margin-top:8px;">
+                    <input type="text" id="dither-dam-root" placeholder="DAM root (e.g. kbatch/ingredients)">
+                    <button class="quick-btn" id="dither-dam-build">Build DAM Tree</button>
+                    <button class="quick-btn" id="dither-dam-broadcast">Broadcast kbatch</button>
+                    <button class="quick-btn" id="dither-copy-dam-cli">Copy DAM CLI</button>
+                </div>
+                <div class="food-output" id="dither-dam-output">DAM tree ready: none</div>
                 <div class="dither-grid">
                     <div class="canvas-wrap"><canvas id="dither-canvas" width="672" height="384"></canvas></div>
                     <pre id="dither-output" class="dither-output"># Freya HexCast dither output will appear here.</pre>
@@ -1237,6 +1388,9 @@ function activateTab(tabName){
     if(tabName==='bracelet'&&typeof drawBraceletScale==='function'){
         requestAnimationFrame(()=>{ drawBraceletScale(); });
     }
+    if(tabName==='music'&&typeof runMusicDawSync==='function'){
+        requestAnimationFrame(()=>{ runMusicDawSync(); });
+    }
 }
 const qpInput = document.getElementById('quick-prompt-input');
 const qpCopy = document.getElementById('quick-prompt-copy');
@@ -1244,10 +1398,11 @@ const qpButtons = Array.from(document.querySelectorAll('.quick-prompt-chip[data-
 function buildQuickPrompt(mode, text){
     const t = String(text || '').trim() || 'Add details here';
     const templates = {
-        convert: 'Convert and explain this clearly with formulas, units, and final answer: ',
-        recipe: 'Turn this into recipe-style numbered instructions with checks: ',
-        list: 'Expand this concept into concise grouped bullet lists: ',
-        math: 'Solve this long math problem step-by-step and verify the result: '
+        convert: 'Freya AI Convert: compute this with explicit formulas, units, uncertainty notes, and final schema JSON: ',
+        recipe: 'Freya AI Recipe Ops: transform this into production-ready steps, inventory checks, and timing windows: ',
+        list: 'Freya AI Ops List: expand into grouped execution checklist with owners, blockers, and pass/fail criteria: ',
+        math: 'Freya AI Long Math: solve rigorously, show derivation, validate numerically, and summarize assumptions: ',
+        codex: 'Freya AI Codex: generate astrology context + wheel insights + compatibility signals as structured XML+JSON: '
     };
     return (templates[mode] || templates.convert) + t;
 }
@@ -1416,8 +1571,35 @@ const ditherCopyBatchCliBtn = document.getElementById('dither-copy-batch-cli');
 const ditherStatus = document.getElementById('dither-status');
 const ditherCanvas = document.getElementById('dither-canvas');
 const ditherOutput = document.getElementById('dither-output');
+const ditherQrTextEl = document.getElementById('dither-qr-text');
+const ditherQrSizeEl = document.getElementById('dither-qr-size');
+const ditherQrGenerateBtn = document.getElementById('dither-qr-generate');
+const ditherCopyQrCliBtn = document.getElementById('dither-copy-qr-cli');
+const ditherQrOutputEl = document.getElementById('dither-qr-output');
+const ditherLookupCodeEl = document.getElementById('dither-isbn-code');
+const ditherLookupBtn = document.getElementById('dither-lookup');
+const ditherCopyLookupCliBtn = document.getElementById('dither-copy-lookup-cli');
+const ditherLookupOutputEl = document.getElementById('dither-lookup-output');
+const ditherPhotoFileEl = document.getElementById('dither-photo-file');
+const ditherPhotoScanBtn = document.getElementById('dither-photo-scan');
+const ditherCameraStartBtn = document.getElementById('dither-camera-start');
+const ditherCameraStopBtn = document.getElementById('dither-camera-stop');
+const ditherCameraPreviewEl = document.getElementById('dither-camera-preview');
+const ditherAddIngredientBtn = document.getElementById('dither-add-ingredient');
+const ditherQuicklistGenerateBtn = document.getElementById('dither-quicklist-generate');
+const ditherQuicklistCopyBtn = document.getElementById('dither-quicklist-copy');
+const ditherQuicklistOutputEl = document.getElementById('dither-quicklist-output');
+const ditherDamRootEl = document.getElementById('dither-dam-root');
+const ditherDamBuildBtn = document.getElementById('dither-dam-build');
+const ditherDamBroadcastBtn = document.getElementById('dither-dam-broadcast');
+const ditherCopyDamCliBtn = document.getElementById('dither-copy-dam-cli');
+const ditherDamOutputEl = document.getElementById('dither-dam-output');
 let ditherImage = null;
 let ditherFileName = '';
+let ditherLastLookup = null;
+let ditherQuickList = [];
+let ditherDamTree = null;
+let ditherCameraStream = null;
 
 function makeFallbackDitherImage(){
     const c = document.createElement('canvas');
@@ -1568,10 +1750,588 @@ if(ditherCopyBatchCliBtn){
         }catch(_){}
     });
 }
+function currentQrCli(){
+    const text = String(ditherQrTextEl?.value || 'https://freya.qbitos.ai').trim() || 'https://freya.qbitos.ai';
+    const size = Math.max(96, Math.min(1024, Number(ditherQrSizeEl?.value || 320)));
+    return `./freya code qr --text "${text.replaceAll('"','\\"')}" --size ${size} --out bench/freya-hexcast-qr.png`;
+}
+function currentLookupCli(){
+    const code = String(ditherLookupCodeEl?.value || '9780140328721').trim() || '9780140328721';
+    return `./freya code lookup --code "${code.replaceAll('"','\\"')}"`;
+}
+function currentDamCli(){
+    const root = String(ditherDamRootEl?.value || 'kbatch/ingredients').trim() || 'kbatch/ingredients';
+    return `./freya code dam-tree --root "${root.replaceAll('"','\\"')}" --input-json bench/ingredients.json`;
+}
+function lookupToIngredient(lookup){
+    if(!lookup || typeof lookup !== 'object') return null;
+    const fallbackName = `item-${String(lookup.code || 'unknown')}`;
+    const name = String(lookup.name || lookup.title || fallbackName).trim();
+    const unit = 'piece';
+    const qty = 1;
+    const onHand = 0;
+    const par = 12;
+    const usageDay = 1;
+    const cost = 0;
+    const note = `${lookup.source || 'unknown'}:${lookup.code || ''}`;
+    return {name, qty, unit, kcal:0, protein:0, carbs:0, fat:0, note, onHand, par, usageDay, cost};
+}
+function renderDamTree(){
+    const root = String(ditherDamRootEl?.value || 'kbatch/ingredients').trim() || 'kbatch/ingredients';
+    const totalQty = ingredientLiveList.reduce((s, it)=>s + Number(it.qty || 0), 0);
+    const totalCost = ingredientLiveList.reduce((s, it)=>s + (Number(it.qty || 0) * Number(it.cost || 0)), 0);
+    const reorderCost = ingredientLiveList.reduce((s, it)=>{
+        const rq = Math.max(0, Number(it.par || 0) - Number(it.onHand || 0));
+        return s + (rq * Number(it.cost || 0));
+    }, 0);
+    const laneScale = Math.log10(Math.max(1, totalQty + ingredientLiveList.length));
+    const groups = {};
+    ingredientLiveList.forEach((it)=>{
+        const k = String(it.unit || 'unit');
+        if(!groups[k]) groups[k] = [];
+        groups[k].push(it);
+    });
+    const groupLines = Object.entries(groups).map(([k, list])=>{
+        const gQty = list.reduce((s, it)=>s + Number(it.qty || 0), 0);
+        const gCost = list.reduce((s, it)=>s + (Number(it.qty || 0) * Number(it.cost || 0)), 0);
+        return `├─ ${k} (${list.length} items | qty=${gQty.toFixed(2)} | cost=$${gCost.toFixed(2)})`;
+    });
+    const codecFamily = ['.q', '.qbit', '.steno.map'];
+    ditherDamTree = {
+        root,
+        generatedAt: new Date().toISOString(),
+        codecFamily,
+        metrics: {
+            items: ingredientLiveList.length,
+            quicklistItems: ditherQuickList.length,
+            totalQty,
+            totalCost,
+            reorderCost,
+            laneScaleLog10: Number(laneScale.toFixed(4)),
+            qbitScaleScore: Number((laneScale * (1 + ingredientLiveList.length / 10)).toFixed(4)),
+        },
+        groups,
+        quicklist: ditherQuickList.slice(0, 80),
+    };
+    if(ditherDamOutputEl){
+        ditherDamOutputEl.textContent = [
+            `root: ${root}`,
+            `codec: ${codecFamily.join(' | ')}`,
+            `items: ${ingredientLiveList.length} | quicklist: ${ditherQuickList.length}`,
+            `qty: ${totalQty.toFixed(3)} | cost: $${totalCost.toFixed(2)} | reorder: $${reorderCost.toFixed(2)}`,
+            `qbitScaleScore: ${ditherDamTree.metrics.qbitScaleScore.toFixed(4)}`,
+            '',
+            `${root}`,
+            ...groupLines,
+        ].join('\n');
+    }
+    return ditherDamTree;
+}
+async function generateDitherQr(){
+    const text = String(ditherQrTextEl?.value || '').trim();
+    if(!text){
+        if(ditherQrOutputEl) ditherQrOutputEl.textContent = 'QR text is empty.';
+        return;
+    }
+    const size = Math.max(96, Math.min(1024, Number(ditherQrSizeEl?.value || 320)));
+    const url = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
+    if(ditherQrOutputEl){
+        ditherQrOutputEl.innerHTML = '';
+        const meta = document.createElement('div');
+        meta.textContent = `QR generated (${size}px).`;
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = 'Open PNG';
+        a.style.marginLeft = '8px';
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'HexCast QR';
+        img.style.maxWidth = '160px';
+        img.style.display = 'block';
+        img.style.marginTop = '8px';
+        ditherQrOutputEl.appendChild(meta);
+        ditherQrOutputEl.appendChild(a);
+        ditherQrOutputEl.appendChild(img);
+    }
+    if(ditherStatus) ditherStatus.textContent = `QR ready: ${url}`;
+}
+async function lookupBarcode(codeOverride){
+    const code = String(codeOverride || ditherLookupCodeEl?.value || '').trim();
+    if(!code){
+        if(ditherLookupOutputEl) ditherLookupOutputEl.textContent = 'Enter ISBN/EAN/UPC code.';
+        return;
+    }
+    const clean = code.replace(/[^0-9Xx]/g, '');
+    const results = [];
+    try{
+        if(clean.length === 10 || clean.length === 13){
+            const ol = await fetch(`https://openlibrary.org/isbn/${clean}.json`);
+            if(ol.ok){
+                const data = await ol.json();
+                results.push({source:'openlibrary', title:data.title || 'n/a', publishDate:data.publish_date || 'n/a'});
+            }
+        }
+    }catch(_){}
+    try{
+        if(clean.length === 10 || clean.length === 13){
+            const gb = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(clean)}`);
+            if(gb.ok){
+                const data = await gb.json();
+                const v = data?.items?.[0]?.volumeInfo;
+                if(v){ results.push({source:'google-books', title:v.title || 'n/a', authors:(v.authors||[]).join(', ') || 'n/a'}); }
+            }
+        }
+    }catch(_){}
+    try{
+        const off = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(clean)}.json`);
+        if(off.ok){
+            const data = await off.json();
+            const p = data?.product;
+            if(p){ results.push({source:'openfoodfacts', name:p.product_name || p.generic_name || 'n/a', brand:p.brands || 'n/a'}); }
+        }
+    }catch(_){}
+    ditherLastLookup = {
+        code: clean,
+        source: results[0]?.source || 'none',
+        title: results[0]?.title || '',
+        name: results[0]?.name || '',
+        rawResults: results,
+    };
+    if(ditherLookupOutputEl){
+        ditherLookupOutputEl.textContent = results.length
+            ? results.map((r, i)=>`${i+1}. ${r.source}: ${JSON.stringify(r)}`).join('\n')
+            : `No result for ${clean} across OpenLibrary/Google Books/OpenFoodFacts.`;
+    }
+    if(results.length){
+        const first = results[0];
+        const quick = {
+            code: clean,
+            source: String(first.source || 'unknown'),
+            label: String(first.name || first.title || `item-${clean}`),
+        };
+        ditherQuickList.push(quick);
+        if(ditherQuickList.length > 120) ditherQuickList.shift();
+    }
+}
+async function scanPhotoBarcode(){
+    const file = ditherPhotoFileEl?.files && ditherPhotoFileEl.files[0];
+    if(!file){
+        if(ditherStatus) ditherStatus.textContent = 'Pick a photo first.';
+        return;
+    }
+    if(!('BarcodeDetector' in window)){
+        if(ditherStatus) ditherStatus.textContent = 'BarcodeDetector not supported in this browser.';
+        return;
+    }
+    try{
+        const bitmap = await createImageBitmap(file);
+        const detector = new window.BarcodeDetector({
+            formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code'],
+        });
+        const found = await detector.detect(bitmap);
+        if(!found.length){
+            if(ditherStatus) ditherStatus.textContent = 'No barcode found in photo.';
+            return;
+        }
+        const raw = String(found[0].rawValue || '').trim();
+        if(ditherLookupCodeEl) ditherLookupCodeEl.value = raw;
+        await lookupBarcode(raw);
+        if(ditherStatus) ditherStatus.textContent = `Photo scan detected: ${raw}`;
+    }catch(_){
+        if(ditherStatus) ditherStatus.textContent = 'Photo scan failed.';
+    }
+}
+async function startCameraScan(){
+    if(!navigator.mediaDevices?.getUserMedia){
+        if(ditherStatus) ditherStatus.textContent = 'Camera API not available.';
+        return;
+    }
+    if(!('BarcodeDetector' in window)){
+        if(ditherStatus) ditherStatus.textContent = 'BarcodeDetector not supported in this browser.';
+        return;
+    }
+    try{
+        ditherCameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+        if(ditherCameraPreviewEl){
+            ditherCameraPreviewEl.srcObject = ditherCameraStream;
+            ditherCameraPreviewEl.style.display = 'block';
+        }
+        const detector = new window.BarcodeDetector({
+            formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code'],
+        });
+        const tick = async ()=>{
+            if(!ditherCameraStream || !ditherCameraPreviewEl) return;
+            try{
+                const found = await detector.detect(ditherCameraPreviewEl);
+                if(found && found.length){
+                    const raw = String(found[0].rawValue || '').trim();
+                    if(raw){
+                        if(ditherLookupCodeEl) ditherLookupCodeEl.value = raw;
+                        await lookupBarcode(raw);
+                        if(ditherStatus) ditherStatus.textContent = `Camera scan detected: ${raw}`;
+                    }
+                }
+            }catch(_){}
+            if(ditherCameraStream) setTimeout(tick, 700);
+        };
+        tick();
+    }catch(_){
+        if(ditherStatus) ditherStatus.textContent = 'Camera start failed.';
+    }
+}
+function stopCameraScan(){
+    if(ditherCameraStream){
+        ditherCameraStream.getTracks().forEach((t)=>t.stop());
+        ditherCameraStream = null;
+    }
+    if(ditherCameraPreviewEl){
+        ditherCameraPreviewEl.srcObject = null;
+        ditherCameraPreviewEl.style.display = 'none';
+    }
+}
+function generateQuickList(){
+    const lines = ditherQuickList.map((it, i)=>`${i+1}. ${it.label} [${it.code}] (${it.source})`);
+    if(ditherQuicklistOutputEl){
+        ditherQuicklistOutputEl.textContent = lines.length ? lines.join('\n') : 'Quick list is empty.';
+    }
+    return lines;
+}
+function broadcastDamTree(){
+    const payload = renderDamTree();
+    try{
+        const kb = new BroadcastChannel('kbatch-training');
+        kb.postMessage({type:'freya-dam-tree', payload});
+        kb.close();
+    }catch(_){}
+    try{
+        const hx = new BroadcastChannel('hexterm');
+        hx.postMessage({type:'freya-dam-tree', payload});
+        hx.close();
+    }catch(_){}
+    try{
+        const jawta = new BroadcastChannel('jawta-audio');
+        jawta.postMessage({type:'freya-dam-tree', payload});
+        jawta.close();
+    }catch(_){}
+    if(ditherStatus) ditherStatus.textContent = 'DAM tree broadcast to kbatch-training + hexterm + jawta-audio.';
+}
+if(ditherQrGenerateBtn){
+    ditherQrGenerateBtn.addEventListener('click', ()=>{ generateDitherQr(); });
+}
+if(ditherCopyQrCliBtn){
+    ditherCopyQrCliBtn.addEventListener('click', async ()=>{
+        try{
+            const cmd = currentQrCli();
+            await navigator.clipboard.writeText(cmd);
+            ditherCopyQrCliBtn.textContent = 'Copied QR CLI';
+            if(ditherStatus) ditherStatus.textContent = `CLI copied: ${cmd}`;
+            setTimeout(()=>{ ditherCopyQrCliBtn.textContent = 'Copy QR CLI'; }, 1400);
+        }catch(_){}
+    });
+}
+if(ditherLookupBtn){
+    ditherLookupBtn.addEventListener('click', ()=>{ lookupBarcode(); });
+}
+if(ditherCopyLookupCliBtn){
+    ditherCopyLookupCliBtn.addEventListener('click', async ()=>{
+        try{
+            const cmd = currentLookupCli();
+            await navigator.clipboard.writeText(cmd);
+            ditherCopyLookupCliBtn.textContent = 'Copied Lookup CLI';
+            if(ditherStatus) ditherStatus.textContent = `CLI copied: ${cmd}`;
+            setTimeout(()=>{ ditherCopyLookupCliBtn.textContent = 'Copy Lookup CLI'; }, 1400);
+        }catch(_){}
+    });
+}
+if(ditherLookupCodeEl){
+    ditherLookupCodeEl.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter'){
+            e.preventDefault();
+            lookupBarcode();
+        }
+    });
+}
+if(ditherPhotoScanBtn){
+    ditherPhotoScanBtn.addEventListener('click', ()=>{ scanPhotoBarcode(); });
+}
+if(ditherCameraStartBtn){
+    ditherCameraStartBtn.addEventListener('click', ()=>{ startCameraScan(); });
+}
+if(ditherCameraStopBtn){
+    ditherCameraStopBtn.addEventListener('click', ()=>{ stopCameraScan(); });
+}
+if(ditherAddIngredientBtn){
+    ditherAddIngredientBtn.addEventListener('click', ()=>{
+        const mapped = lookupToIngredient(ditherLastLookup);
+        if(!mapped){
+            if(ditherStatus) ditherStatus.textContent = 'No lookup result to add.';
+            return;
+        }
+        if(addIngredientEntry(mapped)){
+            if(ditherStatus) ditherStatus.textContent = `Added ingredient: ${mapped.name}`;
+            activateTab('ingredients');
+        }
+    });
+}
+if(ditherQuicklistGenerateBtn){
+    ditherQuicklistGenerateBtn.addEventListener('click', ()=>{ generateQuickList(); });
+}
+if(ditherQuicklistCopyBtn){
+    ditherQuicklistCopyBtn.addEventListener('click', async ()=>{
+        try{
+            const lines = generateQuickList();
+            await navigator.clipboard.writeText(lines.join('\n'));
+            ditherQuicklistCopyBtn.textContent = 'Copied Quick List';
+            setTimeout(()=>{ ditherQuicklistCopyBtn.textContent = 'Copy Quick List'; }, 1400);
+        }catch(_){}
+    });
+}
+if(ditherDamBuildBtn){
+    ditherDamBuildBtn.addEventListener('click', ()=>{ renderDamTree(); });
+}
+if(ditherDamBroadcastBtn){
+    ditherDamBroadcastBtn.addEventListener('click', ()=>{ broadcastDamTree(); });
+}
+if(ditherCopyDamCliBtn){
+    ditherCopyDamCliBtn.addEventListener('click', async ()=>{
+        try{
+            const cmd = currentDamCli();
+            await navigator.clipboard.writeText(cmd);
+            ditherCopyDamCliBtn.textContent = 'Copied DAM CLI';
+            setTimeout(()=>{ ditherCopyDamCliBtn.textContent = 'Copy DAM CLI'; }, 1400);
+        }catch(_){}
+    });
+}
+window.addEventListener('beforeunload', ()=>{ stopCameraScan(); });
 renderDitherTool();
 
 /* ═══════════════════════════════════════════════════
-   UNIT DATA — 8 categories, 70+ units
+   MUSIC LANE — TRANSPOSE + DAW SYNC + BINAURAL
+   ═══════════════════════════════════════════════════ */
+const musicNotesEl = document.getElementById('music-notes');
+const musicSemitonesEl = document.getElementById('music-semitones');
+const musicKeyEl = document.getElementById('music-key');
+const musicBpmEl = document.getElementById('music-bpm');
+const musicSampleRateEl = document.getElementById('music-sample-rate');
+const musicBufferSizeEl = document.getElementById('music-buffer-size');
+const musicBaseHzEl = document.getElementById('music-base-hz');
+const musicBeatHzEl = document.getElementById('music-beat-hz');
+const musicTransposeRunBtn = document.getElementById('music-transpose-run');
+const musicDawSyncRunBtn = document.getElementById('music-daw-sync-run');
+const musicOscStartBtn = document.getElementById('music-osc-start');
+const musicOscStopBtn = document.getElementById('music-osc-stop');
+const musicCopyCliBtn = document.getElementById('music-copy-cli');
+const musicBroadcastKbatchBtn = document.getElementById('music-broadcast-kbatch');
+const musicOutputEl = document.getElementById('music-output');
+let musicLastPayload = null;
+let musicAudioCtx = null;
+let musicOscNodes = [];
+const NOTE_INDEX = {C:0,'C#':1,DB:1,D:2,'D#':3,EB:3,E:4,F:5,'F#':6,GB:6,G:7,'G#':8,AB:8,A:9,'A#':10,BB:10,B:11};
+const NOTE_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function noteToMidi(note){
+    const s = String(note || '').trim().toUpperCase();
+    if(!s || s.length < 2) throw new Error(`invalid note ${note}`);
+    const head = s[0];
+    let accidental = '';
+    let octavePart = s.slice(1);
+    if(s[1] === '#' || s[1] === 'B'){
+        accidental = s[1];
+        octavePart = s.slice(2);
+    }
+    const key = `${head}${accidental}`;
+    const idx = NOTE_INDEX[key];
+    if(typeof idx !== 'number') throw new Error(`invalid note key ${note}`);
+    const octave = Number(octavePart);
+    if(!Number.isFinite(octave)) throw new Error(`invalid note octave ${note}`);
+    return ((octave + 1) * 12) + idx;
+}
+function midiToNote(m){
+    const midi = Math.max(0, Math.min(127, Math.round(Number(m) || 0)));
+    const octave = Math.floor(midi / 12) - 1;
+    return `${NOTE_SHARP[midi % 12]}${octave}`;
+}
+function midiToFreq(m){
+    const midi = Number(m) || 69;
+    return 440 * Math.pow(2, (midi - 69) / 12);
+}
+function runMusicTranspose(){
+    const notes = String(musicNotesEl?.value || '').split(',').map((x)=>x.trim()).filter(Boolean);
+    const semitones = Math.round(Number(musicSemitonesEl?.value || 0));
+    const key = String(musicKeyEl?.value || 'C').trim() || 'C';
+    if(!notes.length){
+        if(musicOutputEl) musicOutputEl.textContent = 'Music transpose: notes list is empty.';
+        return null;
+    }
+    const mapping = notes.map((n)=>{
+        const midi = noteToMidi(n);
+        const transposedMidi = Math.max(0, Math.min(127, midi + semitones));
+        return {
+            input:n,
+            midi,
+            transposed:midiToNote(transposedMidi),
+            transposedMidi,
+            freqHz:midiToFreq(midi),
+            transposedFreqHz:midiToFreq(transposedMidi),
+        };
+    });
+    const out = {
+        mode:'music.transpose',
+        key,
+        semitones,
+        notesIn:notes,
+        notesOut:mapping.map((m)=>m.transposed),
+        mapping,
+    };
+    musicLastPayload = out;
+    if(musicOutputEl){
+        musicOutputEl.textContent = `transpose ${semitones >= 0 ? '+' : ''}${semitones} st (${key})\n`
+            + mapping.map((m)=>`${m.input} -> ${m.transposed} (${m.transposedFreqHz.toFixed(2)}Hz)`).join('\n');
+    }
+    return out;
+}
+function runMusicDawSync(){
+    const bpm = Math.max(1e-6, Number(musicBpmEl?.value || 120));
+    const sampleRate = Math.max(1, Math.round(Number(musicSampleRateEl?.value || 48000)));
+    const bufferSize = Math.max(1, Math.round(Number(musicBufferSizeEl?.value || 256)));
+    const beatSec = 60 / bpm;
+    const barSec = beatSec * 4;
+    const payload = {
+        mode:'music.daw-sync',
+        bpm,
+        sampleRate,
+        bufferSize,
+        beatSec,
+        barSec,
+        samplesPerBeat:beatSec * sampleRate,
+        buffersPerBeat:(beatSec * sampleRate) / bufferSize,
+    };
+    musicLastPayload = payload;
+    if(musicOutputEl){
+        musicOutputEl.textContent = `daw sync @ ${bpm.toFixed(3)} BPM\n`
+            + `beat=${beatSec.toFixed(6)}s | bar=${barSec.toFixed(6)}s\n`
+            + `samples/beat=${payload.samplesPerBeat.toFixed(2)} | buffers/beat=${payload.buffersPerBeat.toFixed(4)}`;
+    }
+    return payload;
+}
+async function startMusicOsc(){
+    const baseHz = Math.max(1, Number(musicBaseHzEl?.value || 220));
+    const beatHz = Math.max(0.01, Number(musicBeatHzEl?.value || 8));
+    const leftHz = baseHz - (beatHz / 2);
+    const rightHz = baseHz + (beatHz / 2);
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC){
+        if(musicOutputEl) musicOutputEl.textContent = 'AudioContext not supported.';
+        return null;
+    }
+    if(!musicAudioCtx) musicAudioCtx = new AC();
+    if(musicAudioCtx.state === 'suspended'){
+        try{ await musicAudioCtx.resume(); }catch(_){}
+    }
+    stopMusicOsc();
+    const oscL = musicAudioCtx.createOscillator();
+    const oscR = musicAudioCtx.createOscillator();
+    oscL.type = 'sine'; oscR.type = 'sine';
+    oscL.frequency.value = leftHz;
+    oscR.frequency.value = rightHz;
+    const gainL = musicAudioCtx.createGain();
+    const gainR = musicAudioCtx.createGain();
+    gainL.gain.value = 0.04;
+    gainR.gain.value = 0.04;
+    if(typeof musicAudioCtx.createStereoPanner === 'function'){
+        const panL = musicAudioCtx.createStereoPanner();
+        const panR = musicAudioCtx.createStereoPanner();
+        panL.pan.value = -1;
+        panR.pan.value = 1;
+        oscL.connect(gainL).connect(panL).connect(musicAudioCtx.destination);
+        oscR.connect(gainR).connect(panR).connect(musicAudioCtx.destination);
+    }else{
+        oscL.connect(gainL).connect(musicAudioCtx.destination);
+        oscR.connect(gainR).connect(musicAudioCtx.destination);
+    }
+    oscL.start();
+    oscR.start();
+    musicOscNodes = [oscL, oscR, gainL, gainR];
+    const payload = {mode:'music.binaural', baseHz, beatHz, leftHz, rightHz};
+    musicLastPayload = payload;
+    if(musicOutputEl){
+        musicOutputEl.textContent = `binaural oscillator running\nleft=${leftHz.toFixed(3)}Hz right=${rightHz.toFixed(3)}Hz beat=${beatHz.toFixed(3)}Hz`;
+    }
+    return payload;
+}
+function stopMusicOsc(){
+    if(musicOscNodes.length){
+        try{
+            const o1 = musicOscNodes[0];
+            const o2 = musicOscNodes[1];
+            if(o1 && typeof o1.stop === 'function') o1.stop();
+            if(o2 && typeof o2.stop === 'function') o2.stop();
+        }catch(_){}
+    }
+    musicOscNodes = [];
+}
+function currentMusicCli(){
+    const notes = String(musicNotesEl?.value || 'C4,E4,G4').trim() || 'C4,E4,G4';
+    const semitones = Math.round(Number(musicSemitonesEl?.value || 0));
+    const bpm = Math.max(1e-6, Number(musicBpmEl?.value || 120));
+    const baseHz = Math.max(1, Number(musicBaseHzEl?.value || 220));
+    const beatHz = Math.max(0.01, Number(musicBeatHzEl?.value || 8));
+    const sampleRate = Math.max(1, Math.round(Number(musicSampleRateEl?.value || 48000)));
+    const bufferSize = Math.max(1, Math.round(Number(musicBufferSizeEl?.value || 256)));
+    return [
+        `./freya music transpose --notes "${notes.replaceAll('"','\\"')}" --semitones ${semitones}`,
+        `./freya music daw-sync --bpm ${bpm} --sample-rate ${sampleRate} --buffer-size ${bufferSize}`,
+        `./freya music binaural --base-hz ${baseHz} --beat-hz ${beatHz}`,
+    ].join(' && ');
+}
+function broadcastMusicKbatch(){
+    const payload = musicLastPayload || runMusicDawSync();
+    try{
+        const kb = new BroadcastChannel('kbatch-training');
+        kb.postMessage({type:'freya-music-sync', payload});
+        kb.close();
+    }catch(_){}
+    try{
+        const hx = new BroadcastChannel('hexterm');
+        hx.postMessage({type:'freya-music-sync', payload});
+        hx.close();
+    }catch(_){}
+    try{
+        const jawta = new BroadcastChannel('jawta-audio');
+        jawta.postMessage({type:'freya-music-sync', payload});
+        jawta.close();
+    }catch(_){}
+}
+if(musicTransposeRunBtn){
+    musicTransposeRunBtn.addEventListener('click', ()=>{ runMusicTranspose(); });
+}
+if(musicDawSyncRunBtn){
+    musicDawSyncRunBtn.addEventListener('click', ()=>{ runMusicDawSync(); });
+}
+if(musicOscStartBtn){
+    musicOscStartBtn.addEventListener('click', ()=>{ startMusicOsc(); });
+}
+if(musicOscStopBtn){
+    musicOscStopBtn.addEventListener('click', ()=>{ stopMusicOsc(); });
+}
+if(musicCopyCliBtn){
+    musicCopyCliBtn.addEventListener('click', async ()=>{
+        try{
+            const cmd = currentMusicCli();
+            await navigator.clipboard.writeText(cmd);
+            musicCopyCliBtn.textContent = 'Copied Music CLI';
+            setTimeout(()=>{ musicCopyCliBtn.textContent = 'Copy Music CLI'; }, 1400);
+        }catch(_){}
+    });
+}
+if(musicBroadcastKbatchBtn){
+    musicBroadcastKbatchBtn.addEventListener('click', ()=>{ broadcastMusicKbatch(); });
+}
+window.addEventListener('beforeunload', ()=>{ stopMusicOsc(); });
+
+/* ═══════════════════════════════════════════════════
+   UNIT DATA — 9 categories, 70+ units
    ═══════════════════════════════════════════════════ */
 const CATEGORIES = {
     length: {name:'Length',icon:'📏',color:'#a78bfa'},
@@ -1582,6 +2342,7 @@ const CATEGORIES = {
     pressure: {name:'Pressure',icon:'🔵',color:'#3b82f6'},
     time: {name:'Time',icon:'⏱',color:'#34d399'},
     data: {name:'Data',icon:'💾',color:'#8b5cf6'},
+    music: {name:'Music',icon:'♫',color:'#ec4899'},
     calibration: {name:'Calibration Legend',icon:'🧭',color:'#06b6d4'},
 };
 const UNITS = [
@@ -1666,6 +2427,14 @@ const UNITS = [
     {sym:'GB',name:'Gigabyte',factor:8e9,cat:'data'},
     {sym:'TB',name:'Terabyte',factor:8e12,cat:'data'},
     {sym:'PB',name:'Petabyte',factor:8e15,cat:'data'},
+    // Music (frequency/time sync base unit: Hz)
+    {sym:'Hz',name:'Hertz',factor:1,cat:'music'},
+    {sym:'kHz',name:'Kilohertz',factor:1000,cat:'music'},
+    {sym:'mHz',name:'Millihertz',factor:1e-3,cat:'music'},
+    {sym:'BPS',name:'Beats per second',factor:1,cat:'music'},
+    {sym:'BPM',name:'Beats per minute',factor:1/60,cat:'music'},
+    {sym:'qBPM',name:'Quantum BPM',factor:1/60,cat:'music'},
+    {sym:'LPB',name:'Lines per beat',factor:1,cat:'music'},
     // Calibration Legend (BPM ↔ qBPM ↔ QHz ↔ ns/line)
     {sym:'BPM',name:'Linear BPM',factor:1,cat:'calibration'},
     {sym:'qBPM',name:'Quantum BPM (QHz×60)',factor:1,cat:'calibration'},
@@ -1704,9 +2473,106 @@ const laneTotalLabelEl = document.getElementById('lane-total-label');
 const laneSliceALabelEl = document.getElementById('lane-slice-a-label');
 const laneSliceBLabelEl = document.getElementById('lane-slice-b-label');
 const laneVolumeLabelEl = document.getElementById('lane-volume-label');
+const dataCodecFromEl = document.getElementById('data-codec-from');
+const dataCodecToEl = document.getElementById('data-codec-to');
+const dataCodecInputEl = document.getElementById('data-codec-input');
+const dataCodecRunBtn = document.getElementById('data-codec-run');
+const dataCodecSwapBtn = document.getElementById('data-codec-swap');
+const dataCodecCopyBtn = document.getElementById('data-codec-copy');
+const dataCodecCopyCliBtn = document.getElementById('data-codec-copy-cli');
+const dataCodecStatusEl = document.getElementById('data-codec-status');
+const dataCodecOutputEl = document.getElementById('data-codec-output');
+const STENO_ZERO = '\u2008';
+const STENO_ONE = '\u2009';
 
 function fmtMoney(n){
     return Number(n || 0).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
+}
+
+function dataCodecBytesFromText(source, fromFmt){
+    const fmt = String(fromFmt || '').toLowerCase();
+    if(fmt === 'ascii'){
+        return new TextEncoder().encode(String(source || ''));
+    }
+    if(fmt === 'hex'){
+        const clean = String(source || '').replace(/[^0-9a-f]/gi, '').toLowerCase();
+        if(!clean) return new Uint8Array();
+        if(clean.length % 2 !== 0) throw new Error('hex input length must be even');
+        const out = new Uint8Array(clean.length / 2);
+        for(let i=0;i<clean.length;i+=2){
+            out[i/2] = parseInt(clean.slice(i, i+2), 16);
+        }
+        return out;
+    }
+    if(fmt === 'binary'){
+        const clean = String(source || '').replace(/[^01]/g, '');
+        if(!clean) return new Uint8Array();
+        if(clean.length % 8 !== 0) throw new Error('binary length must be multiple of 8');
+        const out = new Uint8Array(clean.length / 8);
+        for(let i=0;i<clean.length;i+=8){
+            out[i/8] = parseInt(clean.slice(i, i+8), 2);
+        }
+        return out;
+    }
+    if(fmt === 'steno'){
+        let bits = '';
+        for(const ch of String(source || '')){
+            if(ch === STENO_ZERO) bits += '0';
+            else if(ch === STENO_ONE) bits += '1';
+        }
+        if(!bits) throw new Error('steno input has no steno symbols');
+        if(bits.length % 8 !== 0) throw new Error('steno bit length must be multiple of 8');
+        const out = new Uint8Array(bits.length / 8);
+        for(let i=0;i<bits.length;i+=8){
+            out[i/8] = parseInt(bits.slice(i, i+8), 2);
+        }
+        return out;
+    }
+    throw new Error(`unsupported from format ${fromFmt}`);
+}
+function dataCodecTextFromBytes(bytes, toFmt){
+    const fmt = String(toFmt || '').toLowerCase();
+    if(fmt === 'ascii'){
+        return new TextDecoder().decode(bytes);
+    }
+    if(fmt === 'hex'){
+        return Array.from(bytes).map((b)=>b.toString(16).padStart(2, '0')).join('');
+    }
+    if(fmt === 'binary'){
+        return Array.from(bytes).map((b)=>b.toString(2).padStart(8, '0')).join('');
+    }
+    if(fmt === 'steno'){
+        const bits = Array.from(bytes).map((b)=>b.toString(2).padStart(8, '0')).join('');
+        return bits.replaceAll('0', STENO_ZERO).replaceAll('1', STENO_ONE);
+    }
+    throw new Error(`unsupported to format ${toFmt}`);
+}
+function runDataCodec(){
+    try{
+        const fromFmt = String(dataCodecFromEl?.value || 'ascii');
+        const toFmt = String(dataCodecToEl?.value || 'hex');
+        const source = String(dataCodecInputEl?.value || '');
+        const bytes = dataCodecBytesFromText(source, fromFmt);
+        const out = dataCodecTextFromBytes(bytes, toFmt);
+        const visible = out.replace(/\u2008/g, '[S0]').replace(/\u2009/g, '[S1]');
+        if(dataCodecOutputEl) dataCodecOutputEl.textContent = (toFmt === 'steno' ? `${out}\n\nvisible: ${visible}` : out);
+        if(dataCodecStatusEl){
+            dataCodecStatusEl.textContent = `codec ok: ${fromFmt} -> ${toFmt} | bytes=${bytes.length} | out=${out.length}`;
+        }
+        return {fromFmt, toFmt, source, out};
+    }catch(err){
+        if(dataCodecStatusEl){
+            dataCodecStatusEl.textContent = `codec error: ${err?.message || String(err)}`;
+        }
+        if(dataCodecOutputEl) dataCodecOutputEl.textContent = '';
+        return null;
+    }
+}
+function currentDataCodecCli(){
+    const fromFmt = String(dataCodecFromEl?.value || 'ascii');
+    const toFmt = String(dataCodecToEl?.value || 'hex');
+    const txt = String(dataCodecInputEl?.value || '').replaceAll('"', '\\"');
+    return `./freya code codec --from ${fromFmt} --to ${toFmt} --text "${txt}"`;
 }
 const LANE_PROFILES = {
     data: {
@@ -1995,6 +2861,32 @@ function convert(){
             <b style="color:var(--cyan);">Calibration Legend:</b> BPM is human-musical calibration. qBPM uses compute cadence from QHz/ns-per-line.
             ${ref && ref.summary ? '<br><span style="color:var(--text-dim);">'+ref.summary+'</span>' : ''}
             ${compass ? '<br><b style="color:var(--purple);">Iron Compass:</b> heading '+compass.heading+' · lane '+compass.lane+' · route '+compass.route.join('→') : ''}
+        </div>`;
+    } else if(activeCat==='music'){
+        const hz = val * fromU.factor;
+        const bpm = hz * 60;
+        const beatSec = hz > 0 ? 1 / hz : 0;
+        const notesCsv = String(musicNotesEl?.value || '').split(',').map((x)=>x.trim()).filter(Boolean);
+        const semitones = Math.round(Number(musicSemitonesEl?.value || 0));
+        const mapped = notesCsv.slice(0, 6).map((n)=>{
+            try{
+                const midi = noteToMidi(n);
+                const mt = Math.max(0, Math.min(127, midi + semitones));
+                return `${n}->${midiToNote(mt)}(${midiToFreq(mt).toFixed(2)}Hz)`;
+            }catch(_){
+                return `${n}->?`;
+            }
+        });
+        qDiv.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div><b style="color:var(--orange);">Hz:</b> ${fmt(hz)}</div>
+            <div><b style="color:var(--orange);">BPM:</b> ${fmt(bpm)}</div>
+            <div><b style="color:var(--cyan);">Beat Period:</b> ${fmt(beatSec)} s</div>
+            <div><b style="color:var(--cyan);">DAW Grid (4/4 Bar):</b> ${fmt(beatSec * 4)} s</div>
+            <div><b style="color:var(--purple);">Transpose:</b> ${semitones >= 0 ? '+' : ''}${semitones} st</div>
+            <div><b style="color:var(--purple);">Signal:</b> binaural-ready oscillator lane</div>
+        </div>
+        <div style="margin-top:8px;color:var(--text-muted);font-size:0.75rem;">
+            <b style="color:var(--cyan);">Live Map:</b> ${mapped.join(' · ') || 'enter notes in Music tab'}
         </div>`;
     } else {
         qDiv.innerHTML = `<div style="color:var(--text-muted);">Quantum properties available for Length category.</div>`;
@@ -2809,10 +3701,50 @@ toSel.addEventListener('change',convert);
 document.getElementById('conv-swap').addEventListener('click',()=>{
     const tmp=fromSel.value; fromSel.value=toSel.value; toSel.value=tmp; convert();
 });
+if(dataCodecRunBtn){
+    dataCodecRunBtn.addEventListener('click', ()=>{ runDataCodec(); });
+}
+if(dataCodecSwapBtn){
+    dataCodecSwapBtn.addEventListener('click', ()=>{
+        if(!dataCodecFromEl || !dataCodecToEl) return;
+        const tmp = dataCodecFromEl.value;
+        dataCodecFromEl.value = dataCodecToEl.value;
+        dataCodecToEl.value = tmp;
+        runDataCodec();
+    });
+}
+if(dataCodecCopyBtn){
+    dataCodecCopyBtn.addEventListener('click', async ()=>{
+        try{
+            await navigator.clipboard.writeText(String(dataCodecOutputEl?.textContent || ''));
+            dataCodecCopyBtn.textContent = 'Copied Output';
+            setTimeout(()=>{ dataCodecCopyBtn.textContent = 'Copy Output'; }, 1200);
+        }catch(_){}
+    });
+}
+if(dataCodecCopyCliBtn){
+    dataCodecCopyCliBtn.addEventListener('click', async ()=>{
+        try{
+            const cmd = currentDataCodecCli();
+            await navigator.clipboard.writeText(cmd);
+            dataCodecCopyCliBtn.textContent = 'Copied Codec CLI';
+            if(dataCodecStatusEl) dataCodecStatusEl.textContent = `CLI copied: ${cmd}`;
+            setTimeout(()=>{ dataCodecCopyCliBtn.textContent = 'Copy Codec CLI'; }, 1200);
+        }catch(_){}
+    });
+}
+if(dataCodecInputEl){
+    dataCodecInputEl.addEventListener('input', ()=>{
+        if(String(activeCat) === 'data'){
+            runDataCodec();
+        }
+    });
+}
 populateSelects();
 setupScaleInteractions();
 setupBraceletInteractions();
 setupBraceletLab();
+runDataCodec();
 if(laneTbEl){ laneTbEl.addEventListener('input', updateDataLane); }
 if(laneCostEl){ laneCostEl.addEventListener('input', updateDataLane); }
 if(lanePctAEl){ lanePctAEl.addEventListener('input', updateDataLane); }
@@ -3077,6 +4009,30 @@ function ingredientTotals(){
         return acc;
     }, {kcal:0, protein:0, carbs:0, fat:0, cost:0, reorderCost:0, reorderItems:0});
 }
+function addIngredientEntry(entry){
+    if(!entry || typeof entry !== 'object') return false;
+    const name = String(entry.name || '').trim();
+    if(!name) return false;
+    const normalized = {
+        name,
+        qty: Number(entry.qty || 0),
+        unit: String(entry.unit || 'piece'),
+        kcal: Number(entry.kcal || 0),
+        protein: Number(entry.protein || 0),
+        carbs: Number(entry.carbs || 0),
+        fat: Number(entry.fat || 0),
+        note: String(entry.note || ''),
+        onHand: Number(entry.onHand || 0),
+        par: Number(entry.par || 0),
+        usageDay: Number(entry.usageDay || 0),
+        cost: Number(entry.cost || 0),
+    };
+    ingredientLiveList.push(normalized);
+    if(ingredientLiveList.length > 120) ingredientLiveList.shift();
+    persistIngredientList();
+    renderIngredientOutputs();
+    return true;
+}
 function renderIngredientOutputs(){
     if(ingredientListOutputEl){
         ingredientListOutputEl.textContent = ingredientLiveList.length
@@ -3150,10 +4106,8 @@ inventory reorder cost: $${reorderCost.toFixed(2)}`;
 }
 if(ingredientAddBtn){
     ingredientAddBtn.addEventListener('click', ()=>{
-        const name = (ingredientNameEl?.value || '').trim();
-        if(!name) return;
-        const entry = {
-            name,
+        addIngredientEntry({
+            name: (ingredientNameEl?.value || '').trim(),
             qty: Number(ingredientQtyEl?.value || 0),
             unit: String(ingredientUnitEl?.value || 'g'),
             kcal: Number(ingredientKcalEl?.value || 0),
@@ -3165,11 +4119,7 @@ if(ingredientAddBtn){
             par: Number(ingredientParEl?.value || 0),
             usageDay: Number(ingredientUsageDayEl?.value || 0),
             cost: Number(ingredientCostEl?.value || 0),
-        };
-        ingredientLiveList.push(entry);
-        if(ingredientLiveList.length > 120) ingredientLiveList.shift();
-        persistIngredientList();
-        renderIngredientOutputs();
+        });
     });
 }
 if(ingredientCopyBtn){
@@ -3471,6 +4421,15 @@ const CELEST_BODIES=[
   {name:'Pluto',sym:'⯓',lon:257.62,gate:'Y',house:1,color:'#bc8cff'}
 ];
 let codexMode='natal',codexRotation=0;
+const codexThemeEl = document.getElementById('codex-theme');
+const codexLanguageEl = document.getElementById('codex-language');
+const codexCustomTitleEl = document.getElementById('codex-custom-title');
+const codexAiContextBtn = document.getElementById('codex-ai-context');
+const codexSplitExportBtn = document.getElementById('codex-split-export');
+const codexExportJsonBtn = document.getElementById('codex-export-json');
+const codexCopyApiTemplateBtn = document.getElementById('codex-copy-api-template');
+const codexOutputEl = document.getElementById('codex-output');
+let codexLastExport = null;
 
 function drawCodexChart(){
   const cv=document.getElementById('codex-canvas');if(!cv)return;
@@ -3580,11 +4539,93 @@ function buildCodexPanels(){
   }
 }
 
+function codexContextXml(){
+  const title = (codexCustomTitleEl?.value || 'Freya Quantum Codex').trim();
+  const language = codexLanguageEl?.value || 'EN';
+  const theme = codexThemeEl?.value || 'dark';
+  const bodyXml = CELEST_BODIES.map((b)=>`<body name="${b.name}" symbol="${b.sym}" longitude="${b.lon.toFixed(2)}" gate="${b.gate}" house="${b.house}" />`).join('\n');
+  return `<chart_analysis type="FreyaCodex" mode="${codexMode}" language="${language}" theme="${theme}">
+  <title>${title}</title>
+  <generated_at>${new Date().toISOString()}</generated_at>
+  <iron_houses>${IRON_HOUSES.join('|')}</iron_houses>
+  <bodies>
+${bodyXml}
+  </bodies>
+</chart_analysis>`;
+}
+
+function exportCodexJson(){
+  const payload = {
+    status:'OK',
+    mode: codexMode,
+    title: (codexCustomTitleEl?.value || 'Freya Quantum Codex').trim(),
+    language: codexLanguageEl?.value || 'EN',
+    theme: codexThemeEl?.value || 'dark',
+    chart_data: {
+      bodies: CELEST_BODIES,
+      houses: IRON_HOUSES,
+      zodiac: ZODIAC,
+      gates: GATE_SYM,
+      generatedAt: new Date().toISOString(),
+    },
+    context: codexContextXml(),
+  };
+  codexLastExport = payload;
+  if(codexOutputEl){
+    codexOutputEl.textContent = `Codex JSON ready (${payload.chart_data.bodies.length} bodies).`;
+  }
+  return payload;
+}
+
+function exportCodexSplit(){
+  const canvas = document.getElementById('codex-canvas');
+  const wheelPng = canvas?.toDataURL('image/png') || '';
+  const gridHtml = document.getElementById('codex-houses')?.innerHTML || '';
+  const payload = {
+    status:'OK',
+    split_chart:true,
+    chart_wheel: wheelPng,
+    chart_grid: gridHtml,
+    chart_data: exportCodexJson().chart_data,
+  };
+  codexLastExport = payload;
+  if(codexOutputEl){
+    codexOutputEl.textContent = `Split export ready (wheel PNG + grid HTML).`;
+  }
+  return payload;
+}
+
 document.getElementById('codex-natal')?.addEventListener('click',()=>{codexMode='natal';drawCodexChart();});
 document.getElementById('codex-transit')?.addEventListener('click',()=>{codexMode='transit';drawCodexChart();});
 document.getElementById('codex-gates')?.addEventListener('click',()=>{codexMode='gates';drawCodexChart();});
 document.getElementById('codex-sync')?.addEventListener('click',()=>{
   new BroadcastChannel('iron-line').postMessage({type:'codex-sync',bodies:CELEST_BODIES,houses:IRON_HOUSES,mode:codexMode});
+});
+codexAiContextBtn?.addEventListener('click', async ()=>{
+  const xml = codexContextXml();
+  codexLastExport = {status:'OK', context: xml};
+  if(codexOutputEl) codexOutputEl.textContent = xml;
+});
+codexSplitExportBtn?.addEventListener('click', async ()=>{
+  const payload = exportCodexSplit();
+  try{
+    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    if(codexOutputEl) codexOutputEl.textContent = 'Split chart export copied as JSON.';
+  }catch(_){}
+});
+codexExportJsonBtn?.addEventListener('click', async ()=>{
+  const payload = exportCodexJson();
+  try{
+    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    if(codexOutputEl) codexOutputEl.textContent = 'Codex JSON copied.';
+  }catch(_){}
+});
+codexCopyApiTemplateBtn?.addEventListener('click', async ()=>{
+  const tpl = `curl -X POST 'https://astrologer.p.rapidapi.com/api/v5/context/birth-chart' -H 'Content-Type: application/json' -H 'X-RapidAPI-Host: astrologer.p.rapidapi.com' -H 'X-RapidAPI-Key: YOUR_API_KEY' -d '{"subject":{"name":"Freya","year":1990,"month":5,"day":1,"hour":10,"minute":0,"longitude":12.4964,"latitude":41.9028,"timezone":"Europe/Rome"},"theme":"${codexThemeEl?.value || 'dark'}","language":"${codexLanguageEl?.value || 'EN'}","custom_title":"${(codexCustomTitleEl?.value || 'Freya Quantum Codex').trim().slice(0,40)}","split_chart":true}'`;
+  try{
+    await navigator.clipboard.writeText(tpl);
+    if(codexOutputEl) codexOutputEl.textContent = 'Astrology API template copied.';
+  }catch(_){}
 });
 drawCodexChart();buildCodexPanels();
 setInterval(()=>{codexRotation+=0.02;if(codexMode==='transit')drawCodexChart();},50);
