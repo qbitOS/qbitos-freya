@@ -278,6 +278,9 @@
         #scale-canvas{
             height:80px;
             background:transparent;
+            touch-action:none;
+            -ms-touch-action:none;
+            cursor:crosshair;
         }
         .scale-readout{
             margin-top:8px;
@@ -1534,7 +1537,8 @@ function convert(){
 
 function syncHiDpiCanvas(canvas, cssHeight){
     if(!canvas) return null;
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const dprRaw = window.devicePixelRatio || 1;
+    const dpr = Math.min(3, Math.max(1, dprRaw));
     if(cssHeight){ canvas.style.height = cssHeight + 'px'; }
     const rect = canvas.getBoundingClientRect();
     const cssW = Math.max(1, Math.floor(rect.width || canvas.clientWidth || canvas.width));
@@ -1566,6 +1570,12 @@ function drawScale(){
 
     const units = unitsForCat('length');
     const minLog=-35, maxLog=17, range=maxLog-minLog;
+    const projectLog = (logValue)=>{
+        const clampedLog = Math.max(minLog, Math.min(maxLog, logValue));
+        const t = (clampedLog - minLog) / range;
+        const x = (t * (W - 40)) + 20;
+        return {x, clampedLog, outOfRange: (logValue < minLog || logValue > maxLog)};
+    };
     const hueAt = (log)=> {
         const t = Math.max(0, Math.min(1, (log - minLog) / range));
         return Math.round(260 - (t * 165));
@@ -1589,7 +1599,7 @@ function drawScale(){
     }
     units.forEach(u=>{
         const log = Math.log10(u.factor);
-        const x = ((log-minLog)/range)*(W-40)+20;
+        const {x} = projectLog(log);
         const hue = hueAt(log);
         ctx.fillStyle=`hsl(${hue} 95% 55%)`;
         ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
@@ -1603,10 +1613,16 @@ function drawScale(){
     if(val>0&&fromU){
         const meters = val*fromU.factor;
         const log = Math.log10(meters);
-        const x = ((log-minLog)/range)*(W-40)+20;
+        const {x, outOfRange} = projectLog(log);
         ctx.fillStyle='rgba(8,145,178,0.22)'; ctx.fillRect(x-10,0,20,H);
         ctx.fillStyle='#0ea5e9'; ctx.fillRect(Math.round(x)-0.5,14,1,H-28);
         ctx.beginPath(); ctx.moveTo(x,H-4); ctx.lineTo(x-6,H); ctx.lineTo(x+6,H); ctx.fill();
+        if(outOfRange){
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '9px monospace';
+            ctx.textAlign = (log > maxLog ? 'right' : 'left');
+            ctx.fillText(log > maxLog ? '→ out of scale' : 'out of scale ←', log > maxLog ? W - 6 : 6, 10);
+        }
     }
 }
 const scaleReadoutMain = document.getElementById('scale-readout-main');
@@ -1625,7 +1641,8 @@ function setScaleReadout(log10Value, mode){
     });
     const inUnit = meters / nearest.factor;
     if(scaleReadoutMain){
-        scaleReadoutMain.textContent = `${mode}: ${fmt(inUnit)} ${nearest.sym} (${fmt(meters)} m · 10^${log10Value.toFixed(3)})`;
+        const clamped = (log10Value < -35 || log10Value > 17) ? ' · off-canvas clamped' : '';
+        scaleReadoutMain.textContent = `${mode}: ${fmt(inUnit)} ${nearest.sym} (${fmt(meters)} m · 10^${log10Value.toFixed(3)}${clamped})`;
     }
     if(scaleReadoutMeta){
         scaleReadoutMeta.textContent = `${nearest.name} · nearest factor ${nearest.factor.toExponential(4)} m`;
@@ -1636,15 +1653,16 @@ function setupScaleInteractions(){
     if(!canvas || canvas.dataset.scaleBound==='1') return;
     canvas.dataset.scaleBound='1';
     const minLog=-35, maxLog=17, range=maxLog-minLog;
+    let pointerDown = false;
+    let activePointerId = null;
     const xToLog = (clientX)=>{
         const rect = canvas.getBoundingClientRect();
         const localX = Math.max(20, Math.min(rect.width-20, clientX - rect.left));
         const t = (localX - 20) / Math.max(1, (rect.width - 40));
         return minLog + (t * range);
     };
-    canvas.addEventListener('mousemove',(e)=>{
-        setScaleReadout(xToLog(e.clientX), 'Hover');
-    });
+    const setFromX = (clientX, mode)=> setScaleReadout(xToLog(clientX), mode);
+    canvas.addEventListener('mousemove',(e)=>{ setFromX(e.clientX, pointerDown ? 'Drag' : 'Hover'); });
     canvas.addEventListener('mouseleave',()=>{
         const units = unitsForCat('length');
         const fromU = units[fromSel.value] || units[0];
@@ -1652,11 +1670,40 @@ function setupScaleInteractions(){
         const meters = Math.max(1e-35, val * fromU.factor);
         setScaleReadout(Math.log10(meters), 'Current');
     });
+    // Pointer events for mouse/pen/touch (modern cross-platform browsers).
+    canvas.addEventListener('pointerdown', (e)=>{
+        pointerDown = true;
+        activePointerId = e.pointerId;
+        try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+        setFromX(e.clientX, 'Touch');
+    });
+    canvas.addEventListener('pointermove', (e)=>{
+        if(!pointerDown || (activePointerId !== null && e.pointerId !== activePointerId)) return;
+        setFromX(e.clientX, 'Drag');
+    });
+    const endPointer = (e)=>{
+        if(activePointerId !== null && e.pointerId !== activePointerId) return;
+        pointerDown = false;
+        activePointerId = null;
+    };
+    canvas.addEventListener('pointerup', endPointer);
+    canvas.addEventListener('pointercancel', endPointer);
+    // Touch fallback for older iOS browsers where PointerEvent support is partial.
+    canvas.addEventListener('touchstart', (e)=>{
+        if(!e.touches || !e.touches[0]) return;
+        pointerDown = true;
+        setFromX(e.touches[0].clientX, 'Touch');
+    }, {passive:true});
+    canvas.addEventListener('touchmove', (e)=>{
+        if(!e.touches || !e.touches[0]) return;
+        setFromX(e.touches[0].clientX, 'Drag');
+    }, {passive:true});
+    canvas.addEventListener('touchend', ()=>{ pointerDown = false; }, {passive:true});
     canvas.addEventListener('wheel',(e)=>{
         e.preventDefault();
         const k = e.deltaY < 0 ? 1.08 : 1/1.08;
         const current = parseFloat(valInput.value) || 1;
-        const next = Math.max(1e-24, current * k);
+        const next = Math.max(1e-24, Math.min(1e120, current * k));
         valInput.value = Number(next.toPrecision(10)).toString();
         convert();
         const units = unitsForCat('length');
@@ -1664,6 +1711,25 @@ function setupScaleInteractions(){
         const meters = Math.max(1e-35, next * fromU.factor);
         setScaleReadout(Math.log10(meters), 'Scroll');
     }, {passive:false});
+    const redraw = ()=>{
+        drawScale();
+        const units = unitsForCat('length');
+        const fromU = units[fromSel.value] || units[0];
+        const val = parseFloat(valInput.value)||0;
+        const meters = Math.max(1e-35, val * fromU.factor);
+        setScaleReadout(Math.log10(meters), 'Current');
+    };
+    if(window.visualViewport){
+        window.visualViewport.addEventListener('resize', redraw, {passive:true});
+    }
+    window.addEventListener('orientationchange', redraw, {passive:true});
+    if(typeof ResizeObserver !== 'undefined'){
+        const host = canvas.parentElement;
+        if(host){
+            const ro = new ResizeObserver(()=>{ redraw(); });
+            ro.observe(host);
+        }
+    }
 }
 
 function buildQuickBtns(){
