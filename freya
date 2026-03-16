@@ -902,11 +902,36 @@ def _chunk_telemetry_stream(args: argparse.Namespace) -> dict:
 def _chunk_quantum_algorithm(args: argparse.Namespace) -> dict:
     name = (args.name or "").strip().lower()
     if name == "grover":
-        program = _build_quantum_preset_program("grover2", 2, args.marked_state)
+        # Interpret --number for Grover as search-space size N when provided.
+        # Current portable implementation supports N=4 (2 qubits) with target 0..3.
+        n = int(args.number) if args.number else 4
+        if n != 4:
+            raise ValueError("grover currently supports --number 4 (2-qubit search space)")
+        target_idx = int(str(args.target)) if args.target is not None else int(args.marked_state, 2)
+        if not (0 <= target_idx <= 3):
+            raise ValueError("grover target must be in range 0..3 for current implementation")
+        target_bits = format(target_idx, "02b")
+
+        # Oracle for arbitrary 2-bit target: X on 0-bits -> CZ(11) -> undo X.
+        ops = []
+        ops.extend(["h 0", "h 1"])
+        if target_bits[0] == "0":
+            ops.append("x 0")
+        if target_bits[1] == "0":
+            ops.append("x 1")
+        ops.extend(["h 1", "cx 0 1", "h 1"])
+        if target_bits[0] == "0":
+            ops.append("x 0")
+        if target_bits[1] == "0":
+            ops.append("x 1")
+        # Diffuser (2-qubit)
+        ops.extend(["h 0", "h 1", "x 0", "x 1", "h 1", "cx 0 1", "h 1", "x 0", "x 1", "h 0", "h 1", "measure"])
+        program = "; ".join(ops)
         return {
             "chunk": "quantum.algorithm",
             "algorithm": "grover",
-            "note": "Current implementation uses 2-qubit Grover preset.",
+            "target": target_idx,
+            "note": "Portable 2-qubit Grover with configurable target index.",
             "result": _run_quantum_program(2, program, max(0, args.shots)),
         }
     if name == "shor":
@@ -1332,6 +1357,36 @@ def _chunk_bench_run(args: argparse.Namespace) -> dict:
 
 
 def _chunk_bench_compare(args: argparse.Namespace) -> dict:
+    # Compatibility route: allow telemetry compare shape through chunk runner.
+    if args.actual and args.target:
+        raw_actual = _load_telemetry_input(args.actual, args.format)
+        raw_target = _load_telemetry_input(args.target, args.format)
+        actual_rows, actual_summary = _annotate_telemetry_rows(
+            rows=raw_actual,
+            step_sec=max(0.001, args.step_sec),
+            maxq_start_sec=args.phase_maxq_start_sec,
+            maxq_end_sec=args.phase_maxq_end_sec,
+            meco_sec=args.phase_meco_sec,
+            seco_sec=args.phase_seco_sec,
+        )
+        target_rows, target_summary = _annotate_telemetry_rows(
+            rows=raw_target,
+            step_sec=max(0.001, args.step_sec),
+            maxq_start_sec=args.phase_maxq_start_sec,
+            maxq_end_sec=args.phase_maxq_end_sec,
+            meco_sec=args.phase_meco_sec,
+            seco_sec=args.phase_seco_sec,
+        )
+        report = _compare_telemetry(
+            actual_rows=actual_rows,
+            target_rows=target_rows,
+            actual_summary=actual_summary,
+            target_summary=target_summary,
+        )
+        report["chunk"] = "bench.compare"
+        report["mode"] = "telemetry"
+        return report
+
     with open(args.bench_file, encoding="utf-8") as fp:
         lines = [json.loads(line) for line in fp if line.strip()]
     means = [float(l.get("meanMs", 0.0)) for l in lines if isinstance(l, dict)]
@@ -1682,6 +1737,7 @@ def main() -> int:
     chunk_run.add_argument("--marked-state", default="11")
     chunk_run.add_argument("--name", default="grover", help="Algorithm/chunk name for generic runners")
     chunk_run.add_argument("--number", type=int, default=15, help="Integer input (e.g., shor demo)")
+    chunk_run.add_argument("--target", default=None, help="Generic target value (e.g., grover target index)")
     chunk_run.add_argument("--from-crs", default="WGS84")
     chunk_run.add_argument("--to-crs", default="UTM")
     chunk_run.add_argument("--lat", type=float, default=0.0)
@@ -1711,6 +1767,8 @@ def main() -> int:
     chunk_run.add_argument("--bench-command", default="./freya math expr \"1+1\"")
     chunk_run.add_argument("--iterations", type=int, default=5)
     chunk_run.add_argument("--bench-file", default="bench/results.jsonl")
+    chunk_run.add_argument("--actual", default=None)
+    chunk_run.add_argument("--format", choices=["auto", "csv", "json", "jsonl"], default="auto")
 
     chunk_scaffold = chunk_sub.add_parser("scaffold", help="Create extendable chunk metadata template")
     chunk_scaffold.add_argument("--id", required=True, help="Chunk id, e.g. custom.my-router")
