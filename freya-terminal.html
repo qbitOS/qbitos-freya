@@ -89,6 +89,21 @@
     input{flex:1;border:1px solid #cbd5e1;border-radius:8px;background:#ffffff;color:#0f172a;padding:10px;font-family:'SF Mono',monospace;}
     button{border:1px solid #7c3aed;border-radius:8px;background:#7c3aed;color:#fff;padding:10px 14px;cursor:pointer;font-weight:600;}
     button:hover{background:#6d28d9;}
+    .lane-card{border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc;padding:12px;margin-top:12px;box-shadow:0 8px 30px rgba(15,23,42,0.10);}
+    .lane-title{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px;}
+    .lane-sub{font-size:12px;color:#64748b;margin-bottom:8px;}
+    .lane-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-bottom:8px;}
+    .lane-box{background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:10px;}
+    .lane-k{font-size:11px;color:#475569;font-family:'SF Mono',monospace;margin-bottom:6px;}
+    .lane-pre{margin:0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;overflow:auto;font-size:11px;line-height:1.45;color:#1e293b;}
+    .lane-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;}
+    .lane-btn{border:1px solid #cbd5e1;border-radius:999px;background:#eef2ff;color:#334155;padding:7px 12px;font-size:11px;cursor:pointer;text-decoration:none;font-family:'SF Mono',monospace;}
+    .lane-btn:hover{background:#e0e7ff;text-decoration:none;}
+    .lane-input,.lane-select,.lane-textarea{width:100%;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;padding:8px;font-family:'SF Mono',monospace;font-size:12px;}
+    .lane-textarea{min-height:72px;}
+    .lane-mini-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:8px 0;}
+    .lane-records{margin:8px 0 0;background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:8px;max-height:180px;overflow:auto;font-size:11px;line-height:1.45;color:#1e293b;white-space:pre;}
+    .lane-status{font-size:12px;color:#64748b;margin-top:6px;}
 
     .footer-bar{padding:24px;text-align:center;border-top:1px solid #cbd5e1;font-size:.6875rem;color:#334155;background:#f8fafc;font-family:'SF Mono',monospace;margin-top:30px;}
 
@@ -145,6 +160,58 @@
         <button id="run">Run</button>
       </div>
     </div>
+    <div class="lane-card">
+      <div class="lane-title">🧰 Terminal Pack + Mistral SDK Lane</div>
+      <div class="lane-sub">Benchmark and local-tooling lane for Freya desktop terminal workflows, with stock prompt testing for cross-model Pass/Fail.</div>
+      <div class="lane-actions">
+        <a class="lane-btn" href="https://docs.mistral.ai/capabilities/embeddings/code_embeddings" target="_blank">Mistral Code Embeddings</a>
+        <a class="lane-btn" href="https://uvmis.ugrad.ai/modellab/" target="_blank">Open ugrad Model Lab</a>
+        <button class="lane-btn" id="term-copy-stock-prompt">Copy Stock Prompt</button>
+      </div>
+      <div class="lane-grid">
+        <div class="lane-box">
+          <div class="lane-k">BENCH REQUIREMENTS (PASS/FAIL)</div>
+          <ul style="margin:0 0 0 16px;font-size:12px;line-height:1.5;color:#1e293b;">
+            <li>Fixed stock prompt, fixed temperature/top_p/max tokens.</li>
+            <li>Schema-valid JSON output with numeric final answer.</li>
+            <li>Latency logged (p50/p95), error rate, and token/cost.</li>
+            <li>T5 noBLINK gate: local T5 path + deterministic fallback.</li>
+            <li>Result ledger with model, date, commit, verdict, notes.</li>
+          </ul>
+        </div>
+        <div class="lane-box">
+          <div class="lane-k">LOCAL DESKTOP TERMINAL INSTALL</div>
+          <pre class="lane-pre">curl -LsSf https://astral.sh/uv/install.sh | sh
+git clone https://github.com/qbitOS/qbitos-freya.git
+cd qbitos-freya
+uv venv
+uv pip install pillow
+uv run python tools/freya-math-cli.py --help
+uv run python tools/freya-hexcast-cli.py --help
+test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent uvspeed repo"</pre>
+        </div>
+      </div>
+      <div class="lane-k">STOCK PROMPT (MODEL BENCH)</div>
+      <textarea id="term-stock-prompt" class="lane-textarea">Solve and verify: Convert 474,000,000 TB/day at $400 per TB, compute 20% and 2% slices, show formulas, output JSON fields {total_usd_per_day, slice20_usd, slice2_usd, assumptions, final_answer}. Then provide one-line PASS/FAIL reasoning quality score (0-100).</textarea>
+      <div class="lane-k" style="margin-top:8px;">BENCH RESULT RECORDER</div>
+      <div class="lane-mini-grid">
+        <input id="term-bench-model" class="lane-input" placeholder="Model">
+        <input id="term-bench-site" class="lane-input" value="freya-terminal" placeholder="Site">
+        <input id="term-bench-p50" class="lane-input" type="number" step="any" placeholder="p50 ms">
+        <input id="term-bench-p95" class="lane-input" type="number" step="any" placeholder="p95 ms">
+        <input id="term-bench-cost" class="lane-input" type="number" step="any" placeholder="Cost / 1M">
+        <select id="term-bench-verdict" class="lane-select"><option>PASS</option><option>FAIL</option></select>
+      </div>
+      <textarea id="term-bench-notes" class="lane-textarea" placeholder="Notes"></textarea>
+      <div class="lane-actions">
+        <button class="lane-btn" id="term-bench-add">Add Record</button>
+        <button class="lane-btn" id="term-bench-copy">Copy Records JSON</button>
+        <button class="lane-btn" id="term-bench-download">Download Records JSON</button>
+        <button class="lane-btn" id="term-bench-clear">Clear Records</button>
+      </div>
+      <pre id="term-bench-records" class="lane-records">[]</pre>
+      <div class="lane-status" id="term-bench-status">Bench records: 0</div>
+    </div>
   </div>
 
   <div class="footer-bar">
@@ -164,6 +231,22 @@
       const qaInput = document.getElementById('qa-input');
       const qaCopy = document.getElementById('qa-copy');
       const qaButtons = Array.from(document.querySelectorAll('.prompt-chip[data-mode]'));
+      const termStockPrompt = document.getElementById('term-stock-prompt');
+      const termCopyPromptBtn = document.getElementById('term-copy-stock-prompt');
+      const termBenchModel = document.getElementById('term-bench-model');
+      const termBenchSite = document.getElementById('term-bench-site');
+      const termBenchP50 = document.getElementById('term-bench-p50');
+      const termBenchP95 = document.getElementById('term-bench-p95');
+      const termBenchCost = document.getElementById('term-bench-cost');
+      const termBenchVerdict = document.getElementById('term-bench-verdict');
+      const termBenchNotes = document.getElementById('term-bench-notes');
+      const termBenchAdd = document.getElementById('term-bench-add');
+      const termBenchCopy = document.getElementById('term-bench-copy');
+      const termBenchDownload = document.getElementById('term-bench-download');
+      const termBenchClear = document.getElementById('term-bench-clear');
+      const termBenchRecords = document.getElementById('term-bench-records');
+      const termBenchStatus = document.getElementById('term-bench-status');
+      let benchRecords = [];
       function asNum(v,d){ const n = Number(v); return Number.isFinite(n) ? n : d; }
       function buildPrompt(mode, text){
         const t = String(text || '').trim() || 'Add details here';
@@ -177,6 +260,24 @@
       }
       async function copyText(v){
         try{ await navigator.clipboard.writeText(v); return true; }catch(_){ return false; }
+      }
+      function loadBenchRecords(){
+        try{
+          const saved = localStorage.getItem('freya_terminal_bench_records_v1');
+          if(saved) benchRecords = JSON.parse(saved);
+          if(!Array.isArray(benchRecords)) benchRecords = [];
+        }catch(_){ benchRecords = []; }
+      }
+      function saveBenchRecords(){
+        try{ localStorage.setItem('freya_terminal_bench_records_v1', JSON.stringify(benchRecords)); }catch(_){}
+      }
+      function renderBenchRecords(){
+        if(termBenchRecords) termBenchRecords.textContent = JSON.stringify(benchRecords, null, 2);
+        if(termBenchStatus) termBenchStatus.textContent = 'Bench records: ' + benchRecords.length;
+      }
+      function numOrNull(v){
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
       }
       async function ensureMathEngine(){
         if(window.FreyaMathEngine) return true;
@@ -297,6 +398,66 @@
         qaCopy.textContent = ok ? 'Copied' : 'Copy Prompt';
         setTimeout(()=>{ qaCopy.textContent = 'Copy Prompt'; }, 1200);
       });
+      if(termCopyPromptBtn){
+        termCopyPromptBtn.addEventListener('click', async ()=>{
+          const ok = await copyText(termStockPrompt?.value || '');
+          termCopyPromptBtn.textContent = ok ? 'Copied Prompt' : 'Copy Stock Prompt';
+          setTimeout(()=>{ termCopyPromptBtn.textContent = 'Copy Stock Prompt'; }, 1200);
+        });
+      }
+      loadBenchRecords();
+      renderBenchRecords();
+      if(termBenchAdd){
+        termBenchAdd.addEventListener('click', ()=>{
+          const model = String(termBenchModel?.value || '').trim();
+          if(!model){
+            if(termBenchStatus) termBenchStatus.textContent = 'Bench records: model is required';
+            return;
+          }
+          const rec = {
+            timestamp: new Date().toISOString(),
+            commit: localStorage.getItem('freya_last_commit_sha') || 'unknown',
+            model,
+            site: String(termBenchSite?.value || 'freya-terminal').trim() || 'freya-terminal',
+            latency_p50_ms: numOrNull(termBenchP50?.value),
+            latency_p95_ms: numOrNull(termBenchP95?.value),
+            cost_per_1m_tokens_usd: numOrNull(termBenchCost?.value),
+            verdict: String(termBenchVerdict?.value || 'PASS'),
+            notes: String(termBenchNotes?.value || '').trim(),
+            prompt: String(termStockPrompt?.value || '').trim()
+          };
+          benchRecords.unshift(rec);
+          saveBenchRecords();
+          renderBenchRecords();
+        });
+      }
+      if(termBenchCopy){
+        termBenchCopy.addEventListener('click', async ()=>{
+          const ok = await copyText(JSON.stringify(benchRecords, null, 2));
+          termBenchCopy.textContent = ok ? 'Copied JSON' : 'Copy Records JSON';
+          setTimeout(()=>{ termBenchCopy.textContent = 'Copy Records JSON'; }, 1200);
+        });
+      }
+      if(termBenchDownload){
+        termBenchDownload.addEventListener('click', ()=>{
+          const blob = new Blob([JSON.stringify(benchRecords, null, 2) + '\n'], {type:'application/json'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'freya-terminal-bench-records.json';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        });
+      }
+      if(termBenchClear){
+        termBenchClear.addEventListener('click', ()=>{
+          benchRecords = [];
+          saveBenchRecords();
+          renderBenchRecords();
+        });
+      }
       run.addEventListener('click', () => { exec(cmd.value); });
       cmd.addEventListener('keydown', (e) => { if (e.key === 'Enter') exec(cmd.value); });
       historyBus.postMessage({ type: 'freya-terminal-ready', timestamp: Date.now() });
