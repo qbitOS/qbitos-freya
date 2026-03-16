@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Freya Runtime Ruleset",
+  "type": "object",
+  "required": [
+    "version",
+    "name",
+    "enforce",
+    "chunkPolicy",
+    "pluginPolicy"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "enforce": {
+      "type": "boolean"
+    },
+    "chunkPolicy": {
+      "type": "object",
+      "required": [
+        "allowAll",
+        "denyChunks",
+        "maxBenchIterations",
+        "allowDockerBuild"
+      ],
+      "properties": {
+        "allowAll": {
+          "type": "boolean"
+        },
+        "denyChunks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maxBenchIterations": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "allowDockerBuild": {
+          "type": "boolean"
+        }
+      }
+    },
+    "pluginPolicy": {
+      "type": "object",
+      "required": [
+        "allowSandboxProfiles",
+        "denyNamePatterns"
+      ],
+      "properties": {
+        "allowSandboxProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "strict",
+              "standard",
+              "trusted"
+            ]
+          }
+        },
+        "denyNamePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

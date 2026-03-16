@@ -615,13 +615,13 @@
         <!-- ═══ NAVIGATION ═══ -->
         <nav class="nav-tabs" id="nav-tabs">
             <button class="nav-tab active" data-tab="convert">⇄ Convert</button>
-            <button class="nav-tab" data-tab="music">♫ Music</button>
             <button class="nav-tab" data-tab="calc">∫ Calculator</button>
             <button class="nav-tab" data-tab="celestial">✦ Celestial</button>
             <button class="nav-tab" data-tab="codex">◎ Codex</button>
             <button class="nav-tab" data-tab="quantum">⚛ Quantum Nav</button>
             <button class="nav-tab" data-tab="dither">▓ Dither</button>
             <button class="nav-tab" data-tab="bracelet">⌁ Bracelet</button>
+            <button class="nav-tab" data-tab="music">♫ Music</button>
             <button class="nav-tab" data-tab="ingredients">🥣 Ingredients</button>
             <button class="nav-tab" data-tab="recipes">🍳 Recipes</button>
         </nav>
@@ -685,43 +685,6 @@
                 <div class="conv-table" id="conv-table"></div>
             </div>
 
-            <div class="card card-light">
-                <div class="card-title"><span class="icon">⌘</span> Data Codec Lane (Steno / Hex / ASCII / Binary)</div>
-                <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:8px;">
-                    Live codec lane for Data workflows. Converts across ascii, hex, binary, and steno space-symbol encoding.
-                </div>
-                <div class="food-grid">
-                    <div>
-                        <label class="convert-label">From</label>
-                        <select id="data-codec-from">
-                            <option value="ascii">ascii</option>
-                            <option value="hex">hex</option>
-                            <option value="binary">binary</option>
-                            <option value="steno">steno</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="convert-label">To</label>
-                        <select id="data-codec-to">
-                            <option value="hex">hex</option>
-                            <option value="ascii">ascii</option>
-                            <option value="binary">binary</option>
-                            <option value="steno">steno</option>
-                        </select>
-                    </div>
-                </div>
-                <label class="convert-label" style="margin-top:8px;display:block;">Input</label>
-                <textarea id="data-codec-input" class="calc-input" style="min-height:72px;" placeholder="Enter text/hex/binary/steno input"></textarea>
-                <div class="quick-row" style="margin-top:8px;">
-                    <button class="quick-btn" id="data-codec-run">Convert</button>
-                    <button class="quick-btn" id="data-codec-swap">Swap</button>
-                    <button class="quick-btn" id="data-codec-copy">Copy Output</button>
-                    <button class="quick-btn" id="data-codec-copy-cli">Copy Codec CLI</button>
-                </div>
-                <div class="food-output" id="data-codec-status">Codec lane ready.</div>
-                <pre class="dither-output" id="data-codec-output"></pre>
-            </div>
-
             <!-- Quantum/wave properties -->
             <div class="card">
                 <div class="card-title"><span class="icon">⚛</span> Quantum &amp; Wave Properties</div>
@@ -762,6 +725,43 @@
                     <div class="metric-chip"><span id="lane-slice-b-label">B slice</span><b id="lane-slice-b">$0</b></div>
                     <div class="metric-chip"><span id="lane-volume-label">Volume</span><b id="lane-volume">0 TB</b></div>
                 </div>
+            </div>
+
+            <div class="card card-light">
+                <div class="card-title"><span class="icon">⌘</span> Data Codec Lane (Steno / Hex / ASCII / Binary)</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:8px;">
+                    Live codec lane for Data workflows. Converts across ascii, hex, binary, and steno space-symbol encoding.
+                </div>
+                <div class="food-grid">
+                    <div>
+                        <label class="convert-label">From</label>
+                        <select id="data-codec-from">
+                            <option value="ascii">ascii</option>
+                            <option value="hex">hex</option>
+                            <option value="binary">binary</option>
+                            <option value="steno">steno</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="convert-label">To</label>
+                        <select id="data-codec-to">
+                            <option value="hex">hex</option>
+                            <option value="ascii">ascii</option>
+                            <option value="binary">binary</option>
+                            <option value="steno">steno</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="convert-label" style="margin-top:8px;display:block;">Input</label>
+                <textarea id="data-codec-input" class="calc-input" style="min-height:72px;" placeholder="Enter text/hex/binary/steno input"></textarea>
+                <div class="quick-row" style="margin-top:8px;">
+                    <button class="quick-btn" id="data-codec-run">Convert</button>
+                    <button class="quick-btn" id="data-codec-swap">Swap</button>
+                    <button class="quick-btn" id="data-codec-copy">Copy Output</button>
+                    <button class="quick-btn" id="data-codec-copy-cli">Copy Codec CLI</button>
+                </div>
+                <div class="food-output" id="data-codec-status">Codec lane ready.</div>
+                <pre class="dither-output" id="data-codec-output"></pre>
             </div>
 
             <div class="card">

@@ -93,6 +93,17 @@ uv run python tools/freya-hexcast-cli.py batch
 ./freya chunk run --id music.binaural --base-hz 220 --beat-hz 8 --duration-sec 120
 nu scripts/pre.nu
 ./freya chunk scaffold --id custom.my-new-component --title "My New Component"
+./freya rules validate --file rulesets/default.ruleset.json
+./freya rules activate --file rulesets/default.ruleset.json
+./freya artifact add --kind report --name readiness --path reports/readiness.json --meta-json '{"scope":"prod"}'
+./freya artifact list --kind report
+./freya artifact set-lifecycle --id <artifact-id> --lifecycle archived
+./freya rag index --source . --glob "*.md"
+./freya rag query --query "erika api bridge" --top-k 5
+./freya chat --session demo --use-rag "summarize readiness"
+./freya models --route-task code --family codellama
+./freya agent memory-write --agent planner --key objective --value "ship readiness"
+./freya agent memory-read --agent planner
 ```
 
 ## Freya Codex Pull API (erika.qbitos.ai)
@@ -208,6 +219,15 @@ IPv6 AAAA go-live checklist:
 ./freya erika run --tool math.expr --args-json '{"expression":"(2+2)*4"}'
 ./freya erika context --subject-json '{"name":"Freya","year":1990,"month":5,"day":1}' --theme dark --language EN
 ```
+
+## Governance + RAG + Memory
+
+- Rulesets: `rulesets/schema.json`, `rulesets/default.ruleset.json`
+- Active ruleset state: `.freya/active-ruleset.json`
+- Artifact lifecycle index: `.freya/artifacts/index.json`
+- Session memory: `.freya/sessions/*.json`
+- Agent collaboration memory: `.freya/agent-memory.json`
+- Local RAG index: `.freya/rag-index.json`
 
 ## Phase A-C Initial Chunk Coverage (1-5)
 

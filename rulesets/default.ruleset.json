@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "name": "freya-default",
+  "enforce": true,
+  "chunkPolicy": {
+    "allowAll": true,
+    "denyChunks": [],
+    "maxBenchIterations": 10000,
+    "allowDockerBuild": false
+  },
+  "pluginPolicy": {
+    "allowSandboxProfiles": [
+      "strict",
+      "standard",
+      "trusted"
+    ],
+    "denyNamePatterns": [
+      "../",
+      "..\\",
+      ";",
+      "&",
+      "|"
+    ]
+  }
+}

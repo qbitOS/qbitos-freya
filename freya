@@ -11,11 +11,13 @@ from __future__ import annotations
 import argparse
 import cmath
 import csv
+import hashlib
 import importlib.util
 import json
 import math
 import os
 import random
+import re
 import shlex
 import shutil
 import statistics
@@ -97,6 +99,13 @@ FREYA_STATE_DIR = Path(__file__).parent / ".freya"
 FREYA_PROFILE_PATH = FREYA_STATE_DIR / "profile.json"
 FREYA_PLUGIN_REGISTRY_PATH = FREYA_STATE_DIR / "plugins.json"
 FREYA_AGENT_DIR = FREYA_STATE_DIR / "agents"
+FREYA_RULESET_DIR = Path(__file__).parent / "rulesets"
+FREYA_ACTIVE_RULESET_PATH = FREYA_STATE_DIR / "active-ruleset.json"
+FREYA_ARTIFACT_INDEX_PATH = FREYA_STATE_DIR / "artifacts" / "index.json"
+FREYA_SESSION_DIR = FREYA_STATE_DIR / "sessions"
+FREYA_AGENT_MEMORY_PATH = FREYA_STATE_DIR / "agent-memory.json"
+FREYA_ROUTER_POLICY_PATH = FREYA_STATE_DIR / "router-policy.json"
+FREYA_RAG_INDEX_PATH = FREYA_STATE_DIR / "rag-index.json"
 ERIKA_BASE = os.getenv("FREYA_ERIKA_BASE", "https://erika.qbitos.ai").rstrip("/")
 ERIKA_API_KEY = os.getenv("FREYA_ERIKA_API_KEY", os.getenv("CODEX_API_KEY", "")).strip()
 
@@ -146,6 +155,346 @@ def _erika_get(path: str, require_key: bool = False) -> dict:
 
 def _erika_post(path: str, payload: dict, require_key: bool = False) -> dict:
     return _post_json(f"{ERIKA_BASE}{path}", payload, headers=_erika_headers(require_key=require_key), timeout=60)
+
+
+def _now_iso() -> str:
+    return datetime.now(tz=timezone.utc).isoformat()
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _default_ruleset() -> dict:
+    return {
+        "version": "1.0.0",
+        "name": "freya-default",
+        "enforce": True,
+        "chunkPolicy": {
+            "allowAll": True,
+            "denyChunks": [],
+            "maxBenchIterations": 10000,
+            "allowDockerBuild": False,
+        },
+        "pluginPolicy": {
+            "allowSandboxProfiles": ["strict", "standard", "trusted"],
+            "denyNamePatterns": ["../", "..\\", ";", "&", "|"],
+        },
+    }
+
+
+def _default_router_policy() -> dict:
+    return {
+        "version": "1.0.0",
+        "taskOrder": {
+            "code": ["lmstudio", "ollama", "ugrad", "huggingface", "mistral"],
+            "analysis": ["ugrad", "lmstudio", "ollama", "huggingface", "mistral"],
+            "ops": ["lmstudio", "ollama", "ugrad", "huggingface", "mistral"],
+            "chat": ["lmstudio", "ollama", "ugrad", "huggingface", "mistral"],
+        },
+    }
+
+
+def _validate_ruleset_obj(obj: dict) -> list[str]:
+    issues: list[str] = []
+    if not isinstance(obj, dict):
+        return ["ruleset must be a JSON object"]
+    if not isinstance(obj.get("version"), str):
+        issues.append("version must be string")
+    if not isinstance(obj.get("name"), str):
+        issues.append("name must be string")
+    if not isinstance(obj.get("enforce"), bool):
+        issues.append("enforce must be boolean")
+    cp = obj.get("chunkPolicy")
+    if not isinstance(cp, dict):
+        issues.append("chunkPolicy must be object")
+    else:
+        if not isinstance(cp.get("allowAll"), bool):
+            issues.append("chunkPolicy.allowAll must be boolean")
+        if not isinstance(cp.get("denyChunks"), list):
+            issues.append("chunkPolicy.denyChunks must be array")
+        if not isinstance(cp.get("maxBenchIterations"), int):
+            issues.append("chunkPolicy.maxBenchIterations must be int")
+        if not isinstance(cp.get("allowDockerBuild"), bool):
+            issues.append("chunkPolicy.allowDockerBuild must be boolean")
+    pp = obj.get("pluginPolicy")
+    if not isinstance(pp, dict):
+        issues.append("pluginPolicy must be object")
+    else:
+        if not isinstance(pp.get("allowSandboxProfiles"), list):
+            issues.append("pluginPolicy.allowSandboxProfiles must be array")
+        if not isinstance(pp.get("denyNamePatterns"), list):
+            issues.append("pluginPolicy.denyNamePatterns must be array")
+    return issues
+
+
+def _load_active_ruleset() -> dict:
+    if FREYA_ACTIVE_RULESET_PATH.exists():
+        obj = _load_json_file(FREYA_ACTIVE_RULESET_PATH, _default_ruleset())
+        if isinstance(obj, dict):
+            return obj
+    return _default_ruleset()
+
+
+def _save_active_ruleset(ruleset: dict) -> None:
+    _save_json_file(FREYA_ACTIVE_RULESET_PATH, ruleset)
+
+
+def _enforce_ruleset_for_chunk(chunk_id: str, args: argparse.Namespace) -> None:
+    rules = _load_active_ruleset()
+    if not rules.get("enforce", True):
+        return
+    cp = rules.get("chunkPolicy", {})
+    deny = set(cp.get("denyChunks", []))
+    if chunk_id in deny:
+        raise ValueError(f"chunk '{chunk_id}' blocked by active ruleset")
+    if not cp.get("allowAll", True):
+        raise ValueError("chunk execution blocked: allowAll=false in active ruleset")
+    if chunk_id == "bench.run":
+        max_iter = int(cp.get("maxBenchIterations", 10000))
+        if int(args.iterations) > max_iter:
+            raise ValueError(f"bench iterations exceed ruleset limit ({args.iterations}>{max_iter})")
+    if chunk_id == "docker.build" and not bool(cp.get("allowDockerBuild", False)):
+        raise ValueError("docker.build blocked by ruleset (allowDockerBuild=false)")
+
+
+def _sanitize_plugin_name(name: str) -> str:
+    out = re.sub(r"[^a-zA-Z0-9._-]+", "-", name.strip())
+    return out.strip(".-") or "plugin"
+
+
+def _plugin_allowed_by_ruleset(name: str, sandbox: str) -> tuple[bool, str]:
+    rules = _load_active_ruleset()
+    pp = rules.get("pluginPolicy", {})
+    allowed_profiles = set(pp.get("allowSandboxProfiles", ["strict", "standard", "trusted"]))
+    if sandbox not in allowed_profiles:
+        return False, f"sandbox profile '{sandbox}' not allowed by ruleset"
+    deny_patterns = [str(x) for x in pp.get("denyNamePatterns", [])]
+    for pat in deny_patterns:
+        if pat and pat in name:
+            return False, f"plugin name matches denied pattern '{pat}'"
+    return True, ""
+
+
+def _append_artifact(kind: str, name: str, path: str | None, meta: dict | None = None, lifecycle: str = "active") -> dict:
+    _ensure_state_dir()
+    payload = _load_json_file(FREYA_ARTIFACT_INDEX_PATH, {"version": "1.0.0", "artifacts": []})
+    if not isinstance(payload, dict):
+        payload = {"version": "1.0.0", "artifacts": []}
+    artifacts = payload.get("artifacts", [])
+    if not isinstance(artifacts, list):
+        artifacts = []
+    artifact_id = _sha256_text(f"{kind}:{name}:{path or ''}:{time.time_ns()}")[:16]
+    item = {
+        "id": artifact_id,
+        "kind": kind,
+        "name": name,
+        "path": path,
+        "version": "0.1.0",
+        "lifecycle": lifecycle,
+        "createdAt": _now_iso(),
+        "updatedAt": _now_iso(),
+        "meta": meta or {},
+    }
+    artifacts.append(item)
+    payload["artifacts"] = artifacts
+    _save_json_file(FREYA_ARTIFACT_INDEX_PATH, payload)
+    return item
+
+
+def _artifact_track_chunk_result(chunk_id: str, result: dict) -> None:
+    if not isinstance(result, dict):
+        return
+    for key in ["output", "storedPath", "path"]:
+        val = result.get(key)
+        if isinstance(val, str) and val.strip():
+            _append_artifact(
+                kind="chunk-output",
+                name=f"{chunk_id}:{key}",
+                path=val,
+                meta={"chunkId": chunk_id, "status": result.get("status", "unknown")},
+            )
+
+
+def _artifact_list(kind: str | None = None, lifecycle: str | None = None) -> dict:
+    payload = _load_json_file(FREYA_ARTIFACT_INDEX_PATH, {"version": "1.0.0", "artifacts": []})
+    artifacts = payload.get("artifacts", []) if isinstance(payload, dict) else []
+    if not isinstance(artifacts, list):
+        artifacts = []
+    out = []
+    for item in artifacts:
+        if not isinstance(item, dict):
+            continue
+        if kind and item.get("kind") != kind:
+            continue
+        if lifecycle and item.get("lifecycle") != lifecycle:
+            continue
+        out.append(item)
+    return {"count": len(out), "artifacts": out}
+
+
+def _artifact_set_lifecycle(artifact_id: str, lifecycle: str) -> dict:
+    payload = _load_json_file(FREYA_ARTIFACT_INDEX_PATH, {"version": "1.0.0", "artifacts": []})
+    artifacts = payload.get("artifacts", []) if isinstance(payload, dict) else []
+    for item in artifacts:
+        if isinstance(item, dict) and item.get("id") == artifact_id:
+            item["lifecycle"] = lifecycle
+            item["updatedAt"] = _now_iso()
+            _save_json_file(FREYA_ARTIFACT_INDEX_PATH, payload)
+            return {"status": "PASS", "artifact": item}
+    raise ValueError(f"artifact id not found: {artifact_id}")
+
+
+def _rag_tokenize(text: str) -> list[str]:
+    return [t for t in re.split(r"[^a-zA-Z0-9_]+", text.lower()) if t]
+
+
+def _rag_index_paths(base: Path, include_glob: str) -> list[Path]:
+    if base.is_file():
+        return [base]
+    files = []
+    for p in base.rglob(include_glob):
+        if p.is_file():
+            files.append(p)
+    return sorted(files)
+
+
+def _rag_build(source: str, include_glob: str = "*.md", max_chars: int = 200000) -> dict:
+    base = Path(source)
+    if not base.exists():
+        raise ValueError(f"source path not found: {source}")
+    docs = []
+    for path in _rag_index_paths(base, include_glob):
+        try:
+            txt = path.read_text(encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            continue
+        txt = txt[:max_chars]
+        tokens = _rag_tokenize(txt)
+        docs.append(
+            {
+                "id": _sha256_text(str(path))[:16],
+                "path": str(path),
+                "tokenCount": len(tokens),
+                "text": txt,
+            }
+        )
+    out = {"version": "1.0.0", "builtAt": _now_iso(), "source": str(base), "glob": include_glob, "docs": docs}
+    _save_json_file(FREYA_RAG_INDEX_PATH, out)
+    return {"status": "PASS", "docs": len(docs), "path": str(FREYA_RAG_INDEX_PATH)}
+
+
+def _rag_query(query: str, top_k: int = 5) -> dict:
+    index = _load_json_file(FREYA_RAG_INDEX_PATH, {"docs": []})
+    docs = index.get("docs", []) if isinstance(index, dict) else []
+    q_tokens = _rag_tokenize(query)
+    q_set = set(q_tokens)
+    scored = []
+    for doc in docs:
+        if not isinstance(doc, dict):
+            continue
+        text = str(doc.get("text", ""))
+        t_set = set(_rag_tokenize(text))
+        score = len(q_set.intersection(t_set))
+        if score <= 0:
+            continue
+        snippet = text[:220].replace("\n", " ")
+        scored.append({"path": doc.get("path"), "score": score, "snippet": snippet})
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return {"query": query, "topK": top_k, "results": scored[: max(1, top_k)]}
+
+
+def _session_path(session_id: str) -> Path:
+    safe = re.sub(r"[^a-zA-Z0-9._-]+", "-", session_id.strip())
+    return FREYA_SESSION_DIR / f"{safe}.json"
+
+
+def _chat_with_session(
+    query: str,
+    backend: str,
+    model: str | None,
+    family: str | None,
+    session_id: str | None,
+    history_n: int,
+    use_rag: bool,
+    rag_top_k: int,
+) -> tuple[str, str | None]:
+    prompt = query
+    sid = session_id.strip() if session_id else ""
+    if sid:
+        _ensure_state_dir()
+        FREYA_SESSION_DIR.mkdir(parents=True, exist_ok=True)
+        sp = _session_path(sid)
+        payload = _load_json_file(sp, {"sessionId": sid, "turns": []})
+        turns = payload.get("turns", []) if isinstance(payload, dict) else []
+        if not isinstance(turns, list):
+            turns = []
+        recent = turns[-max(0, history_n) :]
+        history_lines = []
+        for t in recent:
+            if isinstance(t, dict):
+                history_lines.append(f"USER: {t.get('user', '')}")
+                history_lines.append(f"ASSISTANT: {t.get('assistant', '')}")
+        if history_lines:
+            prompt = f"Session context:\n" + "\n".join(history_lines) + f"\n\nNew user query:\n{query}"
+    if use_rag:
+        rag = _rag_query(query, rag_top_k)
+        if rag.get("results"):
+            ctx = "\n".join([f"- {r['path']}: {r['snippet']}" for r in rag["results"] if isinstance(r, dict)])
+            prompt = f"{prompt}\n\nRAG context:\n{ctx}"
+    answer = chat_conversion(prompt, backend=backend, model=model, family=family)
+    if sid:
+        sp = _session_path(sid)
+        payload = _load_json_file(sp, {"sessionId": sid, "turns": []})
+        turns = payload.get("turns", []) if isinstance(payload, dict) else []
+        if not isinstance(turns, list):
+            turns = []
+        turns.append({"t": _now_iso(), "user": query, "assistant": answer})
+        payload["turns"] = turns
+        _save_json_file(sp, payload)
+    return answer, sid or None
+
+
+def _router_choose(task: str, family: str | None = None) -> dict:
+    policy = _load_json_file(FREYA_ROUTER_POLICY_PATH, _default_router_policy())
+    if not isinstance(policy, dict):
+        policy = _default_router_policy()
+    task_order = policy.get("taskOrder", {})
+    order = task_order.get(task, task_order.get("chat", ["lmstudio", "ollama", "ugrad", "huggingface", "mistral"]))
+    inventory = models_inventory("all")
+    tried = []
+    for backend in order:
+        item = inventory.get(backend, {})
+        tried.append({"backend": backend, "status": item.get("status", "unknown"), "models": item.get("models", [])[:5]})
+        if item.get("status") == "ok":
+            model = _resolve_model(backend, None, family)
+            return {"status": "PASS", "task": task, "backend": backend, "model": model, "candidates": tried}
+    raise RuntimeError(f"no healthy backend for task '{task}'")
+
+
+def _agent_memory_write(agent: str, key: str, value: str) -> dict:
+    _ensure_state_dir()
+    payload = _load_json_file(FREYA_AGENT_MEMORY_PATH, {"agents": {}})
+    if not isinstance(payload, dict):
+        payload = {"agents": {}}
+    agents = payload.get("agents", {})
+    if not isinstance(agents, dict):
+        agents = {}
+    slot = agents.get(agent, {})
+    if not isinstance(slot, dict):
+        slot = {}
+    slot[key] = {"value": value, "updatedAt": _now_iso()}
+    agents[agent] = slot
+    payload["agents"] = agents
+    _save_json_file(FREYA_AGENT_MEMORY_PATH, payload)
+    return {"status": "PASS", "agent": agent, "key": key}
+
+
+def _agent_memory_read(agent: str) -> dict:
+    payload = _load_json_file(FREYA_AGENT_MEMORY_PATH, {"agents": {}})
+    agents = payload.get("agents", {}) if isinstance(payload, dict) else {}
+    data = agents.get(agent, {}) if isinstance(agents, dict) else {}
+    return {"agent": agent, "memory": data}
 
 
 def _market_convert(amount: float, base: str, quote: str) -> dict:
@@ -1575,6 +1924,9 @@ def _safe_chunk_filename(chunk_id: str) -> str:
 
 def _ensure_state_dir() -> None:
     FREYA_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    FREYA_SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    FREYA_AGENT_DIR.mkdir(parents=True, exist_ok=True)
+    FREYA_ARTIFACT_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def _load_json_file(path: Path, fallback: dict | list) -> dict | list:
@@ -2100,12 +2452,33 @@ def _chunk_agents_list() -> dict:
 
 def _chunk_plugins_install(args: argparse.Namespace) -> dict:
     _ensure_state_dir()
+    plugin_name = _sanitize_plugin_name(str(args.plugin_name))
+    sandbox = str(getattr(args, "plugin_sandbox", "strict") or "strict").lower()
+    ok, reason = _plugin_allowed_by_ruleset(plugin_name, sandbox)
+    if not ok:
+        raise ValueError(reason)
+    deps = []
+    deps_csv = str(getattr(args, "plugin_deps", "") or "").strip()
+    if deps_csv:
+        deps = [d.strip() for d in deps_csv.split(",") if d.strip()]
     registry = _load_json_file(FREYA_PLUGIN_REGISTRY_PATH, {"plugins": []})
     plugins = registry.get("plugins", []) if isinstance(registry, dict) else []
     for p in plugins:
-        if isinstance(p, dict) and p.get("name") == args.plugin_name:
+        if isinstance(p, dict) and p.get("name") == plugin_name:
             return {"chunk": "plugins.install", "status": "PASS", "message": "already installed", "plugin": p}
-    plugin = {"name": args.plugin_name, "installedAtEpochSec": int(time.time())}
+    missing = []
+    if deps:
+        installed = {str(p.get("name")) for p in plugins if isinstance(p, dict)}
+        missing = [d for d in deps if d not in installed]
+    plugin = {
+        "name": plugin_name,
+        "version": str(getattr(args, "plugin_version", "0.1.0")),
+        "sandbox": sandbox,
+        "dependencies": deps,
+        "dependencyStatus": "missing" if missing else "ok",
+        "missingDependencies": missing,
+        "installedAtEpochSec": int(time.time()),
+    }
     plugins.append(plugin)
     _save_json_file(FREYA_PLUGIN_REGISTRY_PATH, {"plugins": plugins})
     return {"chunk": "plugins.install", "status": "PASS", "plugin": plugin}
@@ -2430,6 +2803,10 @@ def main() -> int:
         default=None,
         help="Direct family alias (llama2/llama3/mistral/falcon/gptneo/codellama/vicuna)",
     )
+    chat.add_argument("--session", default=None, help="Session id for multi-turn memory")
+    chat.add_argument("--history-n", type=int, default=6, help="How many prior turns to include")
+    chat.add_argument("--use-rag", action="store_true", help="Attach top RAG context snippets")
+    chat.add_argument("--rag-top-k", type=int, default=4, help="RAG snippet count when --use-rag")
 
     models = sub.add_parser("models", help="List discovered/supported models by backend")
     models.add_argument(
@@ -2438,6 +2815,52 @@ def main() -> int:
         default="all",
         help="Backend inventory scope (default: all)",
     )
+    models.add_argument("--route-task", choices=["chat", "code", "analysis", "ops"], default=None, help="Resolve best backend/model for task")
+    models.add_argument("--family", choices=sorted(SUPPORTED_FAMILIES), default=None, help="Optional model family preference")
+
+    rules = sub.add_parser("rules", help="Ruleset definition, validation, and enforcement controls")
+    rules_sub = rules.add_subparsers(dest="rules_cmd", required=True)
+    rules_init = rules_sub.add_parser("init", help="Write default ruleset template")
+    rules_init.add_argument("--out", default=str(FREYA_RULESET_DIR / "default.ruleset.json"))
+    rules_validate = rules_sub.add_parser("validate", help="Validate a ruleset file")
+    rules_validate.add_argument("--file", required=True)
+    rules_activate = rules_sub.add_parser("activate", help="Set active ruleset for runtime enforcement")
+    rules_activate.add_argument("--file", required=True)
+    rules_sub.add_parser("show", help="Show active ruleset")
+
+    artifact = sub.add_parser("artifact", help="Artifact version metadata and lifecycle tracking")
+    artifact_sub = artifact.add_subparsers(dest="artifact_cmd", required=True)
+    artifact_add = artifact_sub.add_parser("add", help="Register an artifact manually")
+    artifact_add.add_argument("--kind", required=True)
+    artifact_add.add_argument("--name", required=True)
+    artifact_add.add_argument("--path", default=None)
+    artifact_add.add_argument("--lifecycle", default="active")
+    artifact_add.add_argument("--meta-json", default="{}")
+    artifact_list = artifact_sub.add_parser("list", help="List tracked artifacts")
+    artifact_list.add_argument("--kind", default=None)
+    artifact_list.add_argument("--lifecycle", default=None)
+    artifact_set = artifact_sub.add_parser("set-lifecycle", help="Update artifact lifecycle state")
+    artifact_set.add_argument("--id", required=True)
+    artifact_set.add_argument("--lifecycle", required=True)
+
+    rag = sub.add_parser("rag", help="RAG indexing and retrieval")
+    rag_sub = rag.add_subparsers(dest="rag_cmd", required=True)
+    rag_index = rag_sub.add_parser("index", help="Build local RAG index from files")
+    rag_index.add_argument("--source", required=True, help="File or directory")
+    rag_index.add_argument("--glob", default="*.md", help="Glob for files in source dir")
+    rag_index.add_argument("--max-chars", type=int, default=200000)
+    rag_query = rag_sub.add_parser("query", help="Query local RAG index")
+    rag_query.add_argument("--query", required=True)
+    rag_query.add_argument("--top-k", type=int, default=5)
+
+    agent_cmd = sub.add_parser("agent", help="Agent collaboration and memory controls")
+    agent_sub = agent_cmd.add_subparsers(dest="agent_cmd", required=True)
+    agent_mem_write = agent_sub.add_parser("memory-write", help="Write shared memory value for agent")
+    agent_mem_write.add_argument("--agent", required=True)
+    agent_mem_write.add_argument("--key", required=True)
+    agent_mem_write.add_argument("--value", required=True)
+    agent_mem_read = agent_sub.add_parser("memory-read", help="Read shared memory for agent")
+    agent_mem_read.add_argument("--agent", required=True)
 
     erika = sub.add_parser("erika", help="Call erika.qbitos.ai tools and Codex API")
     erika_sub = erika.add_subparsers(dest="erika_cmd", required=True)
@@ -2660,6 +3083,9 @@ def main() -> int:
     chunk_run.add_argument("--agent-name", default="my-agent")
     chunk_run.add_argument("--agent-script", default="")
     chunk_run.add_argument("--plugin-name", default="my-plugin")
+    chunk_run.add_argument("--plugin-version", default="0.1.0")
+    chunk_run.add_argument("--plugin-deps", default="", help="Comma-separated plugin dependency names")
+    chunk_run.add_argument("--plugin-sandbox", choices=["strict", "standard", "trusted"], default="strict")
     chunk_run.add_argument("--bench-command", default="./freya math expr \"1+1\"")
     chunk_run.add_argument("--iterations", type=int, default=5)
     chunk_run.add_argument("--bench-file", default="bench/results.jsonl")
@@ -2726,12 +3152,102 @@ def main() -> int:
 
     if args.cmd == "chat":
         query = " ".join(args.query)
-        out = chat_conversion(query, backend=args.backend, model=args.model, family=args.family)
+        out, sid = _chat_with_session(
+            query=query,
+            backend=args.backend,
+            model=args.model,
+            family=args.family,
+            session_id=args.session,
+            history_n=max(0, int(args.history_n)),
+            use_rag=bool(args.use_rag),
+            rag_top_k=max(1, int(args.rag_top_k)),
+        )
         print(out)
+        if sid:
+            print(json.dumps({"session": sid, "saved": True}, ensure_ascii=True))
         return 0 if not out.startswith("Error:") else 1
     if args.cmd == "models":
+        if args.route_task:
+            print(json.dumps(_router_choose(args.route_task, args.family), indent=2))
+            return 0
         print(json.dumps(models_inventory(args.backend), indent=2))
         return 0
+    if args.cmd == "rules":
+        try:
+            if args.rules_cmd == "init":
+                out_path = Path(args.out)
+                if out_path.exists():
+                    raise ValueError(f"ruleset already exists: {out_path}")
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                _save_json_file(out_path, _default_ruleset())
+                print(json.dumps({"status": "PASS", "path": str(out_path)}, indent=2))
+                return 0
+            if args.rules_cmd == "validate":
+                obj = _load_json_file(Path(args.file), {})
+                if not isinstance(obj, dict):
+                    raise ValueError("ruleset file must contain an object")
+                issues = _validate_ruleset_obj(obj)
+                print(json.dumps({"status": "PASS" if not issues else "FAIL", "issues": issues}, indent=2))
+                return 0 if not issues else 2
+            if args.rules_cmd == "activate":
+                obj = _load_json_file(Path(args.file), {})
+                if not isinstance(obj, dict):
+                    raise ValueError("ruleset file must contain an object")
+                issues = _validate_ruleset_obj(obj)
+                if issues:
+                    raise ValueError(f"ruleset validation failed: {'; '.join(issues)}")
+                _save_active_ruleset(obj)
+                print(json.dumps({"status": "PASS", "activePath": str(FREYA_ACTIVE_RULESET_PATH)}, indent=2))
+                return 0
+            if args.rules_cmd == "show":
+                print(json.dumps(_load_active_ruleset(), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "artifact":
+        try:
+            if args.artifact_cmd == "add":
+                meta = json.loads(args.meta_json)
+                if not isinstance(meta, dict):
+                    raise ValueError("--meta-json must decode to an object")
+                print(json.dumps(_append_artifact(args.kind, args.name, args.path, meta, args.lifecycle), indent=2))
+                return 0
+            if args.artifact_cmd == "list":
+                print(json.dumps(_artifact_list(args.kind, args.lifecycle), indent=2))
+                return 0
+            if args.artifact_cmd == "set-lifecycle":
+                print(json.dumps(_artifact_set_lifecycle(args.id, args.lifecycle), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "rag":
+        try:
+            if args.rag_cmd == "index":
+                print(json.dumps(_rag_build(args.source, args.glob, args.max_chars), indent=2))
+                return 0
+            if args.rag_cmd == "query":
+                print(json.dumps(_rag_query(args.query, args.top_k), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "agent":
+        try:
+            if args.agent_cmd == "memory-write":
+                print(json.dumps(_agent_memory_write(args.agent, args.key, args.value), indent=2))
+                return 0
+            if args.agent_cmd == "memory-read":
+                print(json.dumps(_agent_memory_read(args.agent), indent=2))
+                return 0
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
     if args.cmd == "erika":
         try:
             base = str(args.base).rstrip("/")
@@ -3115,7 +3631,9 @@ def main() -> int:
                 return 0
 
             if args.chunk_cmd == "run":
+                _enforce_ruleset_for_chunk(args.id, args)
                 result = _run_chunk_by_id(args.id, args)
+                _artifact_track_chunk_result(args.id, result)
                 print(json.dumps(result, indent=2))
                 if args.id == "telemetry.alert" and result.get("status") == "FAIL":
                     return 2
