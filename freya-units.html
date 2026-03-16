@@ -950,8 +950,11 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
                 <div class="quick-row" style="margin-top:10px;">
                     <button class="quick-btn" id="watchface-add-submission">Add Submission</button>
                     <button class="quick-btn" id="watchface-copy-json">Copy JSON</button>
+                    <button class="quick-btn" id="watchface-export-json">Export .json</button>
+                    <button class="quick-btn" id="watchface-import-json">Import .json</button>
                     <button class="quick-btn" id="watchface-clear-board">Clear Board</button>
                 </div>
+                <input id="watchface-import-file" type="file" accept="application/json,.json" style="display:none;">
                 <div class="watchface-board" id="watchface-board">No submissions yet. Add watch-face variants to start the collaboration board.</div>
             </div>
         </div>
@@ -1918,6 +1921,9 @@ const watchfaceNotesEl = document.getElementById('watchface-notes');
 const watchfaceBoardEl = document.getElementById('watchface-board');
 const watchfaceAddBtn = document.getElementById('watchface-add-submission');
 const watchfaceCopyBtn = document.getElementById('watchface-copy-json');
+const watchfaceExportBtn = document.getElementById('watchface-export-json');
+const watchfaceImportBtn = document.getElementById('watchface-import-json');
+const watchfaceImportFile = document.getElementById('watchface-import-file');
 const watchfaceClearBtn = document.getElementById('watchface-clear-board');
 let watchfaceStyle = 'oled-minimal';
 let watchfaceBoard = [];
@@ -2696,6 +2702,50 @@ if(watchfaceCopyBtn){
             watchfaceCopyBtn.textContent = 'Copied';
             setTimeout(()=>{ watchfaceCopyBtn.textContent = 'Copy JSON'; }, 1200);
         }catch(_){}
+    });
+}
+if(watchfaceExportBtn){
+    watchfaceExportBtn.addEventListener('click', ()=>{
+        try{
+            const payload = JSON.stringify(watchfaceBoard, null, 2);
+            const blob = new Blob([payload], {type:'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `freya-watchface-submissions-${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }catch(_){}
+    });
+}
+if(watchfaceImportBtn && watchfaceImportFile){
+    watchfaceImportBtn.addEventListener('click', ()=>{ watchfaceImportFile.click(); });
+    watchfaceImportFile.addEventListener('change', async ()=>{
+        const f = watchfaceImportFile.files && watchfaceImportFile.files[0];
+        if(!f) return;
+        try{
+            const raw = await f.text();
+            const parsed = JSON.parse(raw);
+            if(Array.isArray(parsed)){
+                watchfaceBoard = parsed
+                    .filter((x)=>x && typeof x === 'object')
+                    .map((x)=>({
+                        name: String(x.name || 'Untitled watch face'),
+                        collaborator: String(x.collaborator || 'unassigned'),
+                        style: String(x.style || 'oled-minimal'),
+                        palette: String(x.palette || 'default'),
+                        markers: String(x.markers || 'major-only'),
+                        notes: String(x.notes || 'no notes'),
+                        createdAt: String(x.createdAt || new Date().toISOString()),
+                    }))
+                    .slice(0, 24);
+                persistWatchfaceBoard();
+                renderWatchfaceBoard();
+            }
+        }catch(_){}
+        watchfaceImportFile.value = '';
     });
 }
 if(watchfaceClearBtn){
