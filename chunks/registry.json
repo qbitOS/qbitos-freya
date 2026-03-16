@@ -1,0 +1,195 @@
+{
+  "version": "1.1.0",
+  "description": "Freya chunk registry for extendable LLM-style components.",
+  "chunks": [
+    {
+      "id": "models.doctor",
+      "title": "Backend Health Doctor",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "ops",
+      "entrypoint": "chunk.run",
+      "description": "Probe all configured model backends and return health + model inventory."
+    },
+    {
+      "id": "models.switch",
+      "title": "Model Routing Profile",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "ops",
+      "entrypoint": "chunk.run",
+      "description": "Persist default backend/model profile for chunk workflows."
+    },
+    {
+      "id": "telemetry.alert",
+      "title": "Telemetry Alert Gate",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "ops",
+      "entrypoint": "chunk.run",
+      "description": "Run safety gates over telemetry rows and emit mission alert payload."
+    },
+    {
+      "id": "telemetry.plot",
+      "title": "Telemetry Plot Export",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "ops",
+      "entrypoint": "chunk.run",
+      "description": "Generate telemetry HTML charts from ingested rows."
+    },
+    {
+      "id": "telemetry.stream",
+      "title": "Telemetry Stream Replay",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "ops",
+      "entrypoint": "chunk.run",
+      "description": "Replay telemetry rows as live JSONL stream with configurable rate."
+    },
+    {
+      "id": "quantum.preset",
+      "title": "Quantum Preset Runner",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "math",
+      "entrypoint": "chunk.run",
+      "description": "Execute reusable quantum preset circuits (bell, ghz, grover2)."
+    },
+    {
+      "id": "quantum.algorithm",
+      "title": "Quantum Algorithm Runner",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "math",
+      "entrypoint": "chunk.run",
+      "description": "Run algorithm adapters (grover demo, shor fallback)."
+    },
+    {
+      "id": "gis.convert",
+      "title": "GIS Coordinate Convert",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "geo",
+      "entrypoint": "chunk.run",
+      "description": "Convert WGS84 coordinates to WebMercator/UTM routing outputs."
+    },
+    {
+      "id": "gis.map",
+      "title": "GIS HTML Map Export",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "geo",
+      "entrypoint": "chunk.run",
+      "description": "Generate a lightweight HTML map artifact from GeoJSON."
+    },
+    {
+      "id": "math.stats",
+      "title": "Stats and Regression",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "math",
+      "entrypoint": "chunk.run",
+      "description": "Compute summary stats or linear regression from CSV datasets."
+    },
+    {
+      "id": "math.diaspora",
+      "title": "Diaspora Math Engine",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "math",
+      "entrypoint": "chunk.run",
+      "description": "Run abacus/lattice and broader diaspora-method calculations with step traces."
+    },
+    {
+      "id": "econ.finance",
+      "title": "Finance Models",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "math",
+      "entrypoint": "chunk.run",
+      "description": "Run NPV and optional IRR approximations for cashflows."
+    },
+    {
+      "id": "docker.build",
+      "title": "Docker Build Adapter",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "infra",
+      "entrypoint": "chunk.run",
+      "description": "Dry-run or run docker build commands from chunk workflows."
+    },
+    {
+      "id": "cloud.upload",
+      "title": "Cloud Upload Adapter",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "infra",
+      "entrypoint": "chunk.run",
+      "description": "Provider-routed upload adapter to stage files in freya state."
+    },
+    {
+      "id": "agents.create",
+      "title": "Custom Agent Scaffold",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "agent",
+      "entrypoint": "chunk.run",
+      "description": "Create draft agent manifests for domain-specific automation."
+    },
+    {
+      "id": "history.livecalc",
+      "title": "Live History Calculator",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "history",
+      "entrypoint": "chunk.run",
+      "description": "Build timeline-aware calculation events using diaspora math methods."
+    },
+    {
+      "id": "agents.list",
+      "title": "Custom Agent Inventory",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "agent",
+      "entrypoint": "chunk.run",
+      "description": "List custom agent manifests available to the CLI."
+    },
+    {
+      "id": "plugins.install",
+      "title": "Plugin Install Registry",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "plugin",
+      "entrypoint": "chunk.run",
+      "description": "Install/register plugin metadata in freya plugin registry."
+    },
+    {
+      "id": "plugins.list",
+      "title": "Plugin Inventory",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "plugin",
+      "entrypoint": "chunk.run",
+      "description": "List installed plugin metadata."
+    },
+    {
+      "id": "bench.run",
+      "title": "Benchmark Runner",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "perf",
+      "entrypoint": "chunk.run",
+      "description": "Benchmark a command across iterations and summarize latency."
+    },
+    {
+      "id": "bench.compare",
+      "title": "Benchmark Comparator",
+      "version": "1.0.0",
+      "status": "active",
+      "type": "perf",
+      "entrypoint": "chunk.run",
+      "description": "Compare benchmark JSONL snapshots and compute drift/improvement."
+    }
+  ]
+}

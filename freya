@@ -16,6 +16,10 @@ import json
 import math
 import os
 import random
+import shlex
+import shutil
+import statistics
+import subprocess
 import sys
 import time
 import urllib.error
@@ -84,6 +88,13 @@ FAMILY_MODEL_MAP = {
         "mistral": "mistral-small-latest",
     },
 }
+
+
+CHUNK_REGISTRY_PATH = Path(__file__).parent / "chunks" / "registry.json"
+FREYA_STATE_DIR = Path(__file__).parent / ".freya"
+FREYA_PROFILE_PATH = FREYA_STATE_DIR / "profile.json"
+FREYA_PLUGIN_REGISTRY_PATH = FREYA_STATE_DIR / "plugins.json"
+FREYA_AGENT_DIR = FREYA_STATE_DIR / "agents"
 
 
 def _post_json(url: str, payload: dict, headers: dict | None = None, timeout: int = 45) -> dict:
@@ -584,6 +595,739 @@ def _compare_telemetry(actual_rows: list[dict], target_rows: list[dict], actual_
     }
 
 
+def _load_chunk_registry() -> dict:
+    if CHUNK_REGISTRY_PATH.exists():
+        with open(CHUNK_REGISTRY_PATH, encoding="utf-8") as fp:
+            return json.load(fp)
+    return {
+        "version": "1.0.0",
+        "chunks": [],
+    }
+
+
+def _find_chunk(chunk_id: str, registry: dict) -> dict | None:
+    for item in registry.get("chunks", []):
+        if isinstance(item, dict) and item.get("id") == chunk_id:
+            return item
+    return None
+
+
+def _chunk_models_doctor() -> dict:
+    inventory = models_inventory("all")
+    healthy = 0
+    total = 0
+    for backend, info in inventory.items():
+        total += 1
+        if isinstance(info, dict) and info.get("status") == "ok":
+            healthy += 1
+    return {
+        "chunk": "models.doctor",
+        "status": "PASS" if healthy == total else "WARN",
+        "healthyBackends": healthy,
+        "totalBackends": total,
+        "inventory": inventory,
+    }
+
+
+def _chunk_telemetry_alert(args: argparse.Namespace) -> dict:
+    if not args.input:
+        raise ValueError("telemetry.alert requires --input")
+    raw_rows = _load_telemetry_input(args.input, args.input_format)
+    rows, summary = _annotate_telemetry_rows(
+        rows=raw_rows,
+        step_sec=max(0.001, args.step_sec),
+        maxq_start_sec=args.phase_maxq_start_sec,
+        maxq_end_sec=args.phase_maxq_end_sec,
+        meco_sec=args.phase_meco_sec,
+        seco_sec=args.phase_seco_sec,
+    )
+    validation = _validate_telemetry(
+        rows=rows,
+        summary=summary,
+        max_q_kpa=args.max_q_kpa,
+        max_accel_g=args.max_accel_g,
+        min_twr=args.min_twr_powered,
+        max_thermal=args.max_thermal_proxy,
+    )
+    severity = "INFO" if validation["status"] == "PASS" else "ALERT"
+    return {
+        "chunk": "telemetry.alert",
+        "severity": severity,
+        "status": validation["status"],
+        "summary": summary,
+        "violationCount": validation["violationCount"],
+        "violations": validation["violations"],
+    }
+
+
+def _build_quantum_preset_program(preset: str, qubits: int, marked_state: str) -> str:
+    p = preset.lower().strip()
+    if p == "bell":
+        if qubits != 2:
+            raise ValueError("bell preset requires --qubits 2")
+        return "h 0; cx 0 1; measure"
+    if p == "ghz":
+        if qubits < 2:
+            raise ValueError("ghz preset requires --qubits >= 2")
+        ops = ["h 0"]
+        for i in range(qubits - 1):
+            ops.append(f"cx {i} {i+1}")
+        ops.append("measure")
+        return "; ".join(ops)
+    if p == "grover2":
+        if qubits != 2:
+            raise ValueError("grover2 preset requires --qubits 2")
+        if marked_state != "11":
+            raise ValueError("grover2 currently supports only --marked-state 11")
+        # 2-qubit Grover: oracle(|11>) then diffuser.
+        return "; ".join(
+            [
+                "h 0",
+                "h 1",
+                "h 1",
+                "cx 0 1",
+                "h 1",
+                "h 0",
+                "h 1",
+                "x 0",
+                "x 1",
+                "h 1",
+                "cx 0 1",
+                "h 1",
+                "x 0",
+                "x 1",
+                "h 0",
+                "h 1",
+                "measure",
+            ]
+        )
+    raise ValueError(f"unsupported preset '{preset}'")
+
+
+def _chunk_quantum_preset(args: argparse.Namespace) -> dict:
+    program = _build_quantum_preset_program(args.preset, args.qubits, args.marked_state)
+    return {
+        "chunk": "quantum.preset",
+        "preset": args.preset,
+        "program": program,
+        "result": _run_quantum_program(args.qubits, program, max(0, args.shots)),
+    }
+
+
+def _run_chunk_by_id(chunk_id: str, args: argparse.Namespace) -> dict:
+    if chunk_id == "models.doctor":
+        return _chunk_models_doctor()
+    if chunk_id == "models.switch":
+        return _chunk_models_switch(args)
+    if chunk_id == "telemetry.alert":
+        return _chunk_telemetry_alert(args)
+    if chunk_id == "telemetry.plot":
+        return _chunk_telemetry_plot(args)
+    if chunk_id == "telemetry.stream":
+        return _chunk_telemetry_stream(args)
+    if chunk_id == "quantum.preset":
+        return _chunk_quantum_preset(args)
+    if chunk_id == "quantum.algorithm":
+        return _chunk_quantum_algorithm(args)
+    if chunk_id == "gis.convert":
+        return _chunk_gis_convert(args)
+    if chunk_id == "gis.map":
+        return _chunk_gis_map(args)
+    if chunk_id == "math.stats":
+        return _chunk_math_stats(args)
+    if chunk_id == "math.diaspora":
+        return _chunk_math_diaspora(args)
+    if chunk_id == "econ.finance":
+        return _chunk_econ_finance(args)
+    if chunk_id == "history.livecalc":
+        return _chunk_history_livecalc(args)
+    if chunk_id == "docker.build":
+        return _chunk_docker_build(args)
+    if chunk_id == "cloud.upload":
+        return _chunk_cloud_upload(args)
+    if chunk_id == "agents.create":
+        return _chunk_agents_create(args)
+    if chunk_id == "agents.list":
+        return _chunk_agents_list()
+    if chunk_id == "plugins.install":
+        return _chunk_plugins_install(args)
+    if chunk_id == "plugins.list":
+        return _chunk_plugins_list()
+    if chunk_id == "bench.run":
+        return _chunk_bench_run(args)
+    if chunk_id == "bench.compare":
+        return _chunk_bench_compare(args)
+    raise ValueError(f"chunk '{chunk_id}' has no runtime handler yet")
+
+
+def _safe_chunk_filename(chunk_id: str) -> str:
+    allowed = []
+    for ch in chunk_id.strip().lower():
+        if ch.isalnum() or ch in {"-", "_", "."}:
+            allowed.append(ch)
+        else:
+            allowed.append("-")
+    name = "".join(allowed).strip(".-") or "chunk"
+    return f"{name}.json"
+
+
+def _ensure_state_dir() -> None:
+    FREYA_STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _load_json_file(path: Path, fallback: dict | list) -> dict | list:
+    if path.exists():
+        with open(path, encoding="utf-8") as fp:
+            return json.load(fp)
+    return fallback
+
+
+def _save_json_file(path: Path, payload: dict | list) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fp:
+        json.dump(payload, fp, indent=2, ensure_ascii=True)
+
+
+def _chunk_models_switch(args: argparse.Namespace) -> dict:
+    _ensure_state_dir()
+    backend = args.backend or "auto"
+    model = args.model or ""
+    profile = {"backend": backend, "model": model, "updatedAtEpochSec": int(time.time())}
+    _save_json_file(FREYA_PROFILE_PATH, profile)
+    return {"chunk": "models.switch", "status": "PASS", "profile": profile, "path": str(FREYA_PROFILE_PATH)}
+
+
+def _chunk_telemetry_plot(args: argparse.Namespace) -> dict:
+    if not args.input:
+        raise ValueError("telemetry.plot requires --input")
+    rows = _load_telemetry_input(args.input, args.input_format)
+    rows, summary = _annotate_telemetry_rows(
+        rows=rows,
+        step_sec=max(0.001, args.step_sec),
+        maxq_start_sec=args.phase_maxq_start_sec,
+        maxq_end_sec=args.phase_maxq_end_sec,
+        meco_sec=args.phase_meco_sec,
+        seco_sec=args.phase_seco_sec,
+    )
+    out_path = Path(args.output or "bench/telemetry-plot.html")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    points = [
+        {
+            "t": _to_float(r.get("tSec")),
+            "alt": _to_float(r.get("altitudeM")),
+            "vel": _to_float(r.get("velocityMs")),
+            "q": _to_float(r.get("dynamicPressurePa")) / 1000.0,
+        }
+        for r in rows
+    ]
+    html = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Freya Telemetry Plot</title>
+<style>body{{font-family:system-ui;background:#0c111b;color:#d8e8ff;margin:0;padding:16px}}canvas{{width:100%;height:260px;background:#111a2a;border:1px solid #2a3f66;border-radius:10px}}.k{{color:#83b8ff}}</style>
+</head><body>
+<h2>Freya Telemetry Plot</h2>
+<p class="k">Max-Q: {summary.get("maxQkPa", 0):.3f} kPa | Max-Accel: {summary.get("maxAccelG", 0):.3f} g</p>
+<canvas id="c" width="1200" height="260"></canvas>
+<script>
+const pts = {json.dumps(points, ensure_ascii=True)};
+const c = document.getElementById('c'); const g = c.getContext('2d');
+function drawLine(key,color,maxv){{
+  g.beginPath(); g.strokeStyle=color; g.lineWidth=2;
+  pts.forEach((p,i)=>{{
+    const x=(i/(pts.length-1||1))*c.width;
+    const y=c.height-(Math.max(0,p[key])/Math.max(1,maxv))*c.height;
+    if(i===0) g.moveTo(x,y); else g.lineTo(x,y);
+  }});
+  g.stroke();
+}}
+const maxAlt=Math.max(...pts.map(p=>p.alt),1), maxVel=Math.max(...pts.map(p=>p.vel),1), maxQ=Math.max(...pts.map(p=>p.q),1);
+drawLine('alt','#7ce38b',maxAlt); drawLine('vel','#7fb2ff',maxVel); drawLine('q','#ffc27f',maxQ);
+</script></body></html>"""
+    out_path.write_text(html, encoding="utf-8")
+    return {"chunk": "telemetry.plot", "status": "PASS", "output": str(out_path), "rows": len(rows)}
+
+
+def _chunk_telemetry_stream(args: argparse.Namespace) -> dict:
+    if not args.input:
+        raise ValueError("telemetry.stream requires --input")
+    rows = _load_telemetry_input(args.input, args.input_format)
+    rows, summary = _annotate_telemetry_rows(
+        rows=rows,
+        step_sec=max(0.001, args.step_sec),
+        maxq_start_sec=args.phase_maxq_start_sec,
+        maxq_end_sec=args.phase_maxq_end_sec,
+        meco_sec=args.phase_meco_sec,
+        seco_sec=args.phase_seco_sec,
+    )
+    replay = max(0.001, args.replay_speed)
+    if args.live:
+        prev_t = None
+        for row in rows:
+            print(json.dumps(row, ensure_ascii=True))
+            t_now = _to_float(row.get("tSec"), 0.0)
+            if prev_t is not None:
+                dt = max(0.0, t_now - prev_t)
+                time.sleep(dt / replay)
+            prev_t = t_now
+        print(json.dumps({"summary": summary}, ensure_ascii=True))
+    return {
+        "chunk": "telemetry.stream",
+        "status": "PASS",
+        "mode": "live-stdout" if args.live else "dry-run",
+        "rows": len(rows),
+        "replaySpeed": replay,
+        "streamPort": args.stream_port,
+        "summary": summary,
+    }
+
+
+def _chunk_quantum_algorithm(args: argparse.Namespace) -> dict:
+    name = (args.name or "").strip().lower()
+    if name == "grover":
+        program = _build_quantum_preset_program("grover2", 2, args.marked_state)
+        return {
+            "chunk": "quantum.algorithm",
+            "algorithm": "grover",
+            "note": "Current implementation uses 2-qubit Grover preset.",
+            "result": _run_quantum_program(2, program, max(0, args.shots)),
+        }
+    if name == "shor":
+        n = int(args.number)
+        if n < 2:
+            raise ValueError("shor requires --number >= 2")
+        factor = 1
+        for i in range(2, int(math.sqrt(n)) + 1):
+            if n % i == 0:
+                factor = i
+                break
+        if factor == 1:
+            return {
+                "chunk": "quantum.algorithm",
+                "algorithm": "shor",
+                "status": "INCONCLUSIVE",
+                "number": n,
+                "message": "No non-trivial factor found (likely prime) in classical fallback.",
+            }
+        return {
+            "chunk": "quantum.algorithm",
+            "algorithm": "shor",
+            "status": "PASS",
+            "number": n,
+            "factors": [factor, n // factor],
+            "message": "Classical fallback factorization for CLI portability.",
+        }
+    raise ValueError(f"unsupported quantum algorithm '{name}'")
+
+
+def _chunk_gis_convert(args: argparse.Namespace) -> dict:
+    from_crs = (args.from_crs or "").upper()
+    to_crs = (args.to_crs or "").upper()
+    lat = float(args.lat)
+    lon = float(args.lon)
+    if from_crs == "WGS84" and to_crs in {"WEBMERCATOR", "EPSG:3857"}:
+        r = 6378137.0
+        x = math.radians(lon) * r
+        y = math.log(math.tan((math.pi / 4) + (math.radians(lat) / 2))) * r
+        return {"chunk": "gis.convert", "from": from_crs, "to": to_crs, "x": x, "y": y}
+    if from_crs == "WGS84" and to_crs == "UTM":
+        zone = int((lon + 180) / 6) + 1
+        return {
+            "chunk": "gis.convert",
+            "from": "WGS84",
+            "to": "UTM",
+            "zone": zone,
+            "hemisphere": "N" if lat >= 0 else "S",
+            "note": "Use pyproj for survey-grade UTM precision; this CLI chunk is a routing stub.",
+        }
+    raise ValueError("supported conversions: WGS84->WEBMERCATOR and WGS84->UTM")
+
+
+def _chunk_gis_map(args: argparse.Namespace) -> dict:
+    if not args.input:
+        raise ValueError("gis.map requires --input GeoJSON path")
+    in_path = Path(args.input)
+    geo = json.loads(in_path.read_text(encoding="utf-8"))
+    out_path = Path(args.output or "map.html")
+    html = f"""<!doctype html><html><head><meta charset="utf-8"><title>Freya GIS Map</title>
+<style>body{{font-family:system-ui;background:#0b0f17;color:#d8e8ff;padding:14px}}pre{{white-space:pre-wrap;background:#111a2a;padding:12px;border-radius:8px}}</style></head>
+<body><h2>Freya GIS Map Export</h2><p>Input: {in_path}</p><pre id="geo"></pre>
+<script>document.getElementById('geo').textContent = JSON.stringify({json.dumps(geo, ensure_ascii=True)}, null, 2);</script>
+</body></html>"""
+    out_path.write_text(html, encoding="utf-8")
+    return {"chunk": "gis.map", "status": "PASS", "output": str(out_path)}
+
+
+def _read_csv_rows(path: str) -> list[dict]:
+    with open(path, encoding="utf-8", newline="") as fp:
+        return [dict(r) for r in csv.DictReader(fp)]
+
+
+def _chunk_math_stats(args: argparse.Namespace) -> dict:
+    if not args.data_file:
+        raise ValueError("math.stats requires --data-file")
+    rows = _read_csv_rows(args.data_file)
+    if not rows:
+        raise ValueError("no rows found in data file")
+    method = (args.method or "summary").lower()
+    if method == "summary":
+        values = [float(r[args.value_col]) for r in rows if args.value_col in r and str(r[args.value_col]).strip()]
+        if not values:
+            raise ValueError(f"value column '{args.value_col}' has no numeric rows")
+        return {
+            "chunk": "math.stats",
+            "method": "summary",
+            "count": len(values),
+            "mean": statistics.mean(values),
+            "stdev": statistics.pstdev(values) if len(values) > 1 else 0.0,
+            "min": min(values),
+            "max": max(values),
+        }
+    if method == "regression":
+        x = [float(r[args.x_col]) for r in rows if args.x_col in r and args.y_col in r]
+        y = [float(r[args.y_col]) for r in rows if args.x_col in r and args.y_col in r]
+        if len(x) < 2:
+            raise ValueError("regression needs at least 2 rows")
+        mx, my = statistics.mean(x), statistics.mean(y)
+        den = sum((xi - mx) ** 2 for xi in x)
+        if den == 0:
+            raise ValueError("x variance is zero; cannot regress")
+        slope = sum((xi - mx) * (yi - my) for xi, yi in zip(x, y)) / den
+        intercept = my - slope * mx
+        return {"chunk": "math.stats", "method": "regression", "slope": slope, "intercept": intercept, "count": len(x)}
+    raise ValueError("math.stats supports methods: summary|regression")
+
+
+def _parse_cashflows(cashflows: str) -> list[float]:
+    vals = []
+    for part in cashflows.split(","):
+        s = part.strip()
+        if s:
+            vals.append(float(s))
+    if not vals:
+        raise ValueError("cashflows string is empty")
+    return vals
+
+
+DIASPORA_METHODS = {
+    "abacus": {"region": "East Asia", "era": "Ancient-Present", "lineage": "suanpan/soroban positional counting"},
+    "lattice": {"region": "India -> Islamic world -> Europe", "era": "Medieval", "lineage": "gelosia lattice multiplication"},
+    "vedic": {"region": "South Asia", "era": "Classical-Modern", "lineage": "mental sutra arithmetic"},
+    "egyptian": {"region": "Nile civilization", "era": "Ancient", "lineage": "doubling/halving multiplication"},
+    "babylonian": {"region": "Mesopotamia", "era": "Ancient", "lineage": "base-60 arithmetic and iterative roots"},
+    "chinese-rod": {"region": "East Asia", "era": "Ancient", "lineage": "rod numeral place-value operations"},
+    "yoruba-base20": {"region": "West Africa", "era": "Historical-Modern", "lineage": "vigesimal decomposition"},
+    "mayan-base20": {"region": "Mesoamerica", "era": "Classical", "lineage": "vigesimal dot-bar arithmetic"},
+    "incan-quipu": {"region": "Andean", "era": "Pre-Columbian", "lineage": "knot-string accounting abstraction"},
+    "islamic-algebra": {"region": "MENA", "era": "Golden Age", "lineage": "al-jabr balancing transformations"},
+}
+
+
+def _to_base20(n: int) -> list[int]:
+    n = abs(n)
+    if n == 0:
+        return [0]
+    out = []
+    while n > 0:
+        out.append(n % 20)
+        n //= 20
+    return list(reversed(out))
+
+
+def _lattice_multiply_steps(a: int, b: int) -> list[str]:
+    a_digits = [int(ch) for ch in str(abs(a))]
+    b_digits = [int(ch) for ch in str(abs(b))]
+    steps = [f"grid {len(b_digits)}x{len(a_digits)} for {a} x {b}"]
+    diag = [0] * (len(a_digits) + len(b_digits))
+    for r, bd in enumerate(reversed(b_digits)):
+        row = []
+        for c, ad in enumerate(reversed(a_digits)):
+            p = ad * bd
+            row.append(f"{ad}x{bd}={p:02d}")
+            diag[r + c] += p
+        steps.append("row " + ", ".join(row))
+    carry = 0
+    out = []
+    for val in diag:
+        total = val + carry
+        out.append(total % 10)
+        carry = total // 10
+    while carry:
+        out.append(carry % 10)
+        carry //= 10
+    steps.append("diagonal sum digits (low->high): " + ",".join(str(x) for x in out))
+    return steps
+
+
+def _egyptian_multiply_steps(a: int, b: int) -> list[str]:
+    left = 1
+    right = abs(a)
+    target = abs(b)
+    selected = []
+    steps = [f"target multiply {a} x {b}"]
+    while left <= target:
+        keep = (target & left) == left
+        steps.append(f"{left:>5} | {right:>8} {'*' if keep else ''}")
+        if keep:
+            selected.append(right)
+        left <<= 1
+        right <<= 1
+    steps.append(f"sum selected = {sum(selected)}")
+    return steps
+
+
+def _run_diaspora_math(method: str, op: str, a: float, b: float | None) -> dict:
+    m = method.strip().lower()
+    if m not in DIASPORA_METHODS:
+        raise ValueError(f"unsupported diaspora method '{method}'")
+    op = op.strip().lower()
+
+    if op == "sqrt":
+        n = a
+        if n < 0:
+            raise ValueError("sqrt requires non-negative a")
+        if m == "babylonian":
+            x = max(1.0, n / 2.0)
+            steps = [f"x0={x}"]
+            for i in range(8):
+                x = 0.5 * (x + n / x) if x != 0 else 0.0
+                steps.append(f"x{i+1}={x}")
+            result = x
+        else:
+            result = math.sqrt(n)
+            steps = [f"{m} maps sqrt via modern fallback for interoperability"]
+    else:
+        if b is None:
+            raise ValueError(f"operation '{op}' requires --b")
+        if op == "add":
+            result = a + b
+        elif op == "sub":
+            result = a - b
+        elif op == "mul":
+            result = a * b
+        elif op == "div":
+            if b == 0:
+                raise ValueError("division by zero")
+            result = a / b
+        else:
+            raise ValueError("supported ops: add|sub|mul|div|sqrt")
+
+        if m == "abacus":
+            steps = [f"set {a} on lower deck", f"{op} with {b} using carry/borrow beads", f"readout={result}"]
+        elif m == "lattice" and op == "mul":
+            steps = _lattice_multiply_steps(int(round(a)), int(round(b)))
+        elif m == "egyptian" and op == "mul":
+            steps = _egyptian_multiply_steps(int(round(a)), int(round(b)))
+        elif m in {"yoruba-base20", "mayan-base20"}:
+            aa = _to_base20(int(round(a)))
+            bb = _to_base20(int(round(b)))
+            rr = _to_base20(int(round(result)))
+            steps = [f"a20={aa}", f"b20={bb}", f"r20={rr}"]
+        elif m == "incan-quipu":
+            steps = [f"encode {a} and {b} knot clusters", f"apply {op} through positional cords", f"decode={result}"]
+        else:
+            steps = [f"{m} {op} transformation", f"result={result}"]
+
+    meta = DIASPORA_METHODS[m]
+    return {
+        "method": m,
+        "operation": op,
+        "inputs": {"a": a, "b": b},
+        "result": result,
+        "history": meta,
+        "steps": steps,
+    }
+
+
+def _chunk_math_diaspora(args: argparse.Namespace) -> dict:
+    a = float(args.a_value)
+    b = None if args.b_value is None else float(args.b_value)
+    payload = _run_diaspora_math(args.diaspora_method, args.operation, a, b)
+    payload["chunk"] = "math.diaspora"
+    payload["availableMethods"] = sorted(DIASPORA_METHODS.keys())
+    return payload
+
+
+def _chunk_history_livecalc(args: argparse.Namespace) -> dict:
+    events = []
+    if args.input:
+        raw = _load_telemetry_input(args.input, args.input_format)
+        for i, row in enumerate(raw):
+            if not isinstance(row, dict):
+                continue
+            method = str(row.get("method", args.diaspora_method))
+            op = str(row.get("operation", row.get("op", args.operation)))
+            a = _to_float(row.get("a"), _to_float(row.get("value"), 0.0))
+            b_raw = row.get("b")
+            b = None if b_raw is None or str(b_raw).strip() == "" else _to_float(b_raw, 0.0)
+            calc = _run_diaspora_math(method, op, a, b)
+            calc["eventIndex"] = i
+            calc["eventLabel"] = str(row.get("label", f"event-{i}"))
+            events.append(calc)
+    else:
+        a = float(args.a_value)
+        b = None if args.b_value is None else float(args.b_value)
+        calc = _run_diaspora_math(args.diaspora_method, args.operation, a, b)
+        calc["eventIndex"] = 0
+        calc["eventLabel"] = args.history_label or "live"
+        events.append(calc)
+
+    timeline = []
+    for i, evt in enumerate(events):
+        hist = evt.get("history", {})
+        timeline.append(
+            {
+                "t": i,
+                "label": evt.get("eventLabel"),
+                "method": evt.get("method"),
+                "operation": evt.get("operation"),
+                "result": evt.get("result"),
+                "region": hist.get("region"),
+                "era": hist.get("era"),
+                "lineage": hist.get("lineage"),
+            }
+        )
+    return {
+        "chunk": "history.livecalc",
+        "status": "PASS",
+        "count": len(events),
+        "timeline": timeline,
+        "events": events,
+    }
+
+
+def _chunk_econ_finance(args: argparse.Namespace) -> dict:
+    flows = _parse_cashflows(args.cashflows)
+    rate = float(args.rate)
+    npv = 0.0
+    for t, cf in enumerate(flows):
+        npv += cf / ((1 + rate) ** t)
+    out = {"chunk": "econ.finance", "method": "npv", "rate": rate, "cashflows": flows, "npv": npv}
+    if args.include_irr:
+        guess = 0.1
+        for _ in range(100):
+            f = sum(cf / ((1 + guess) ** t) for t, cf in enumerate(flows))
+            df = sum((-t * cf) / ((1 + guess) ** (t + 1)) for t, cf in enumerate(flows) if t > 0)
+            if abs(df) < 1e-12:
+                break
+            guess = guess - f / df
+        out["irrApprox"] = guess
+    return out
+
+
+def _chunk_docker_build(args: argparse.Namespace) -> dict:
+    docker_bin = shutil.which("docker")
+    if not docker_bin:
+        return {"chunk": "docker.build", "status": "WARN", "message": "docker binary not found on PATH"}
+    cmd = [docker_bin, "build", "-t", args.image_tag, args.context_dir]
+    if args.dry_run:
+        return {"chunk": "docker.build", "status": "PASS", "dryRun": True, "command": cmd}
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    return {
+        "chunk": "docker.build",
+        "status": "PASS" if proc.returncode == 0 else "FAIL",
+        "returnCode": proc.returncode,
+        "command": cmd,
+        "stdoutTail": proc.stdout[-2000:],
+        "stderrTail": proc.stderr[-2000:],
+    }
+
+
+def _chunk_cloud_upload(args: argparse.Namespace) -> dict:
+    src = Path(args.file_path)
+    if not src.exists():
+        raise ValueError(f"file not found: {src}")
+    provider = (args.provider or "aws").lower()
+    bucket = args.bucket or "default-bucket"
+    dst_dir = FREYA_STATE_DIR / "cloud" / provider / bucket
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = dst_dir / src.name
+    dst.write_bytes(src.read_bytes())
+    return {"chunk": "cloud.upload", "status": "PASS", "provider": provider, "bucket": bucket, "storedPath": str(dst)}
+
+
+def _chunk_agents_create(args: argparse.Namespace) -> dict:
+    FREYA_AGENT_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = FREYA_AGENT_DIR / f"{args.agent_name}.json"
+    if out_path.exists():
+        raise ValueError(f"agent already exists: {out_path}")
+    payload = {
+        "name": args.agent_name,
+        "script": args.agent_script or "",
+        "createdAtEpochSec": int(time.time()),
+        "status": "draft",
+    }
+    _save_json_file(out_path, payload)
+    return {"chunk": "agents.create", "status": "PASS", "path": str(out_path), "agent": payload}
+
+
+def _chunk_agents_list() -> dict:
+    FREYA_AGENT_DIR.mkdir(parents=True, exist_ok=True)
+    items = []
+    for p in sorted(FREYA_AGENT_DIR.glob("*.json")):
+        try:
+            obj = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+        items.append({"name": obj.get("name", p.stem), "path": str(p)})
+    return {"chunk": "agents.list", "count": len(items), "agents": items}
+
+
+def _chunk_plugins_install(args: argparse.Namespace) -> dict:
+    _ensure_state_dir()
+    registry = _load_json_file(FREYA_PLUGIN_REGISTRY_PATH, {"plugins": []})
+    plugins = registry.get("plugins", []) if isinstance(registry, dict) else []
+    for p in plugins:
+        if isinstance(p, dict) and p.get("name") == args.plugin_name:
+            return {"chunk": "plugins.install", "status": "PASS", "message": "already installed", "plugin": p}
+    plugin = {"name": args.plugin_name, "installedAtEpochSec": int(time.time())}
+    plugins.append(plugin)
+    _save_json_file(FREYA_PLUGIN_REGISTRY_PATH, {"plugins": plugins})
+    return {"chunk": "plugins.install", "status": "PASS", "plugin": plugin}
+
+
+def _chunk_plugins_list() -> dict:
+    registry = _load_json_file(FREYA_PLUGIN_REGISTRY_PATH, {"plugins": []})
+    plugins = registry.get("plugins", []) if isinstance(registry, dict) else []
+    return {"chunk": "plugins.list", "count": len(plugins), "plugins": plugins}
+
+
+def _chunk_bench_run(args: argparse.Namespace) -> dict:
+    cmd = shlex.split(args.bench_command)
+    if not cmd:
+        raise ValueError("bench command is empty")
+    durations = []
+    for _ in range(max(1, args.iterations)):
+        t0 = time.perf_counter()
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        dt_ms = (time.perf_counter() - t0) * 1000.0
+        durations.append({"ms": dt_ms, "returnCode": proc.returncode})
+    ms_values = [d["ms"] for d in durations]
+    return {
+        "chunk": "bench.run",
+        "command": cmd,
+        "iterations": len(durations),
+        "minMs": min(ms_values),
+        "maxMs": max(ms_values),
+        "meanMs": statistics.mean(ms_values),
+        "p95Ms": sorted(ms_values)[int(0.95 * (len(ms_values) - 1))],
+    }
+
+
+def _chunk_bench_compare(args: argparse.Namespace) -> dict:
+    with open(args.bench_file, encoding="utf-8") as fp:
+        lines = [json.loads(line) for line in fp if line.strip()]
+    means = [float(l.get("meanMs", 0.0)) for l in lines if isinstance(l, dict)]
+    if len(means) < 2:
+        raise ValueError("bench compare requires at least 2 JSONL rows with meanMs")
+    return {
+        "chunk": "bench.compare",
+        "count": len(means),
+        "firstMeanMs": means[0],
+        "lastMeanMs": means[-1],
+        "deltaMs": means[-1] - means[0],
+        "improvementPct": ((means[0] - means[-1]) / means[0] * 100.0) if means[0] else 0.0,
+    }
+
+
 def _simulate_telemetry(
     duration_s: float,
     dt_s: float,
@@ -886,6 +1630,74 @@ def main() -> int:
     telemetry_compare.add_argument("--phase-meco-sec", type=float, default=None)
     telemetry_compare.add_argument("--phase-seco-sec", type=float, default=None)
 
+    chunk = sub.add_parser("chunk", help="Composable chunk components (LLM-style extendable units)")
+    chunk_sub = chunk.add_subparsers(dest="chunk_cmd", required=True)
+    chunk_list = chunk_sub.add_parser("list", help="List available chunks from registry")
+    chunk_list.add_argument("--json", action="store_true", help="Emit raw registry JSON")
+
+    chunk_show = chunk_sub.add_parser("show", help="Show chunk metadata")
+    chunk_show.add_argument("--id", required=True, help="Chunk id")
+
+    chunk_run = chunk_sub.add_parser("run", help="Run a chunk handler")
+    chunk_run.add_argument("--id", required=True, help="Chunk id")
+    chunk_run.add_argument("--backend", default=None)
+    chunk_run.add_argument("--model", default=None)
+    chunk_run.add_argument("--input", default=None)
+    chunk_run.add_argument("--input-format", choices=["auto", "csv", "json", "jsonl"], default="auto")
+    chunk_run.add_argument("--output", default=None)
+    chunk_run.add_argument("--step-sec", type=float, default=1.0)
+    chunk_run.add_argument("--phase-maxq-start-sec", type=float, default=35.0)
+    chunk_run.add_argument("--phase-maxq-end-sec", type=float, default=65.0)
+    chunk_run.add_argument("--phase-meco-sec", type=float, default=None)
+    chunk_run.add_argument("--phase-seco-sec", type=float, default=None)
+    chunk_run.add_argument("--max-q-kpa", type=float, default=45.0)
+    chunk_run.add_argument("--max-accel-g", type=float, default=6.0)
+    chunk_run.add_argument("--min-twr-powered", type=float, default=1.1)
+    chunk_run.add_argument("--max-thermal-proxy", type=float, default=100000.0)
+    chunk_run.add_argument("--live", action="store_true")
+    chunk_run.add_argument("--replay-speed", type=float, default=1.0)
+    chunk_run.add_argument("--stream-port", type=int, default=8080)
+    chunk_run.add_argument("--preset", choices=["bell", "ghz", "grover2"], default="bell")
+    chunk_run.add_argument("--qubits", type=int, default=2)
+    chunk_run.add_argument("--shots", type=int, default=1024)
+    chunk_run.add_argument("--marked-state", default="11")
+    chunk_run.add_argument("--name", default="grover", help="Algorithm/chunk name for generic runners")
+    chunk_run.add_argument("--number", type=int, default=15, help="Integer input (e.g., shor demo)")
+    chunk_run.add_argument("--from-crs", default="WGS84")
+    chunk_run.add_argument("--to-crs", default="UTM")
+    chunk_run.add_argument("--lat", type=float, default=0.0)
+    chunk_run.add_argument("--lon", type=float, default=0.0)
+    chunk_run.add_argument("--data-file", default=None)
+    chunk_run.add_argument("--method", default="summary")
+    chunk_run.add_argument("--value-col", default="value")
+    chunk_run.add_argument("--x-col", default="x")
+    chunk_run.add_argument("--y-col", default="y")
+    chunk_run.add_argument("--diaspora-method", default="abacus")
+    chunk_run.add_argument("--operation", default="mul")
+    chunk_run.add_argument("--a-value", default="12")
+    chunk_run.add_argument("--b-value", default="34")
+    chunk_run.add_argument("--history-label", default="live")
+    chunk_run.add_argument("--cashflows", default="100,200,300")
+    chunk_run.add_argument("--rate", type=float, default=0.1)
+    chunk_run.add_argument("--include-irr", action="store_true")
+    chunk_run.add_argument("--provider", default="aws")
+    chunk_run.add_argument("--bucket", default="default-bucket")
+    chunk_run.add_argument("--file-path", default="")
+    chunk_run.add_argument("--image-tag", default="freya:latest")
+    chunk_run.add_argument("--context-dir", default=".")
+    chunk_run.add_argument("--dry-run", action="store_true")
+    chunk_run.add_argument("--agent-name", default="my-agent")
+    chunk_run.add_argument("--agent-script", default="")
+    chunk_run.add_argument("--plugin-name", default="my-plugin")
+    chunk_run.add_argument("--bench-command", default="./freya math expr \"1+1\"")
+    chunk_run.add_argument("--iterations", type=int, default=5)
+    chunk_run.add_argument("--bench-file", default="bench/results.jsonl")
+
+    chunk_scaffold = chunk_sub.add_parser("scaffold", help="Create extendable chunk metadata template")
+    chunk_scaffold.add_argument("--id", required=True, help="Chunk id, e.g. custom.my-router")
+    chunk_scaffold.add_argument("--title", default="Custom Chunk")
+    chunk_scaffold.add_argument("--type", default="custom", help="Chunk kind label")
+
     quantum = sub.add_parser("quantum", help="Quantum math + gate simulation")
     quantum_sub = quantum.add_subparsers(dest="quantum_cmd", required=True)
     q_run = quantum_sub.add_parser("run", help="Run a compact gate program")
@@ -1035,6 +1847,65 @@ def main() -> int:
             )
             print(json.dumps(report, indent=2))
             return 0
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.cmd == "chunk":
+        try:
+            registry = _load_chunk_registry()
+            if args.chunk_cmd == "list":
+                if args.json:
+                    print(json.dumps(registry, indent=2))
+                    return 0
+                chunk_rows = []
+                for item in registry.get("chunks", []):
+                    if isinstance(item, dict):
+                        chunk_rows.append(
+                            {
+                                "id": item.get("id"),
+                                "title": item.get("title"),
+                                "version": item.get("version"),
+                                "status": item.get("status", "active"),
+                            }
+                        )
+                print(json.dumps({"chunks": chunk_rows, "count": len(chunk_rows)}, indent=2))
+                return 0
+
+            if args.chunk_cmd == "show":
+                item = _find_chunk(args.id, registry)
+                if not item:
+                    raise ValueError(f"chunk id not found: {args.id}")
+                print(json.dumps(item, indent=2))
+                return 0
+
+            if args.chunk_cmd == "run":
+                result = _run_chunk_by_id(args.id, args)
+                print(json.dumps(result, indent=2))
+                if args.id == "telemetry.alert" and result.get("status") == "FAIL":
+                    return 2
+                return 0
+
+            if args.chunk_cmd == "scaffold":
+                out_dir = Path(__file__).parent / "chunks" / "custom"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                out_path = out_dir / _safe_chunk_filename(args.id)
+                if out_path.exists():
+                    raise ValueError(f"chunk scaffold already exists: {out_path}")
+                template = {
+                    "id": args.id,
+                    "title": args.title,
+                    "version": "0.1.0",
+                    "type": args.type,
+                    "status": "draft",
+                    "entrypoint": "chunk.run",
+                    "inputs": [],
+                    "outputs": [],
+                    "notes": "Fill in runtime contract and wire handler in freya.",
+                }
+                with open(out_path, "w", encoding="utf-8") as fp:
+                    json.dump(template, fp, indent=2)
+                print(json.dumps({"status": "created", "path": str(out_path), "chunk": template}, indent=2))
+                return 0
         except Exception as exc:  # noqa: BLE001
             print(f"error: {exc}", file=sys.stderr)
             return 1

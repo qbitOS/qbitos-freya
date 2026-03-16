@@ -49,7 +49,33 @@ uv run python tools/freya-hexcast-cli.py batch
 ./freya telemetry-validate --input bench/telemetry-sample.jsonl --input-format jsonl --max-q-kpa 45 --max-accel-g 6 --min-twr-powered 1.1
 ./freya telemetry-compare --actual bench/telemetry-run-a.jsonl --target bench/telemetry-run-b.jsonl --format jsonl
 ./freya quantum run --qubits 2 --program "h 0; cx 0 1; measure" --shots 2048
+./freya chunk list
+./freya chunk run --id models.doctor
+./freya chunk run --id telemetry.alert --input bench/telemetry-run-a.jsonl --input-format jsonl
+./freya chunk run --id telemetry.stream --input bench/telemetry-run-a.jsonl --input-format jsonl --live --replay-speed 2.0
+./freya chunk run --id telemetry.plot --input bench/telemetry-run-a.jsonl --input-format jsonl --output bench/telemetry-plot.html
+./freya chunk run --id quantum.preset --preset ghz --qubits 3 --shots 1024
+./freya chunk run --id quantum.algorithm --name shor --number 15
+./freya chunk run --id gis.convert --from-crs WGS84 --to-crs UTM --lat 37.7749 --lon -122.4194
+./freya chunk run --id math.stats --data-file bench/stats.csv --method regression --x-col x --y-col y
+./freya chunk run --id math.diaspora --diaspora-method abacus --operation mul --a-value 147 --b-value 26
+./freya chunk run --id math.diaspora --diaspora-method lattice --operation mul --a-value 123 --b-value 45
+./freya chunk run --id history.livecalc --diaspora-method egyptian --operation mul --a-value 27 --b-value 34 --history-label "Nile trade ledger"
+./freya chunk run --id econ.finance --cashflows "-1000,200,300,400,500" --rate 0.1 --include-irr
+./freya chunk run --id cloud.upload --provider aws --bucket my-bucket --file-path bench/results.jsonl
+./freya chunk run --id agents.create --agent-name mission-ops --agent-script mission_ops.py
+./freya chunk run --id plugins.install --plugin-name telemetry-pack
+./freya chunk run --id bench.run --bench-command "./freya math expr 1+1" --iterations 20
+./freya chunk scaffold --id custom.my-new-component --title "My New Component"
 ```
+
+## Phase A-C Initial Chunk Coverage (1-5)
+
+- 1) Multi-backend model support: `models.doctor`, `models.switch`
+- 2) Enhanced telemetry (stream/validate/plot/compare): `telemetry.stream`, `telemetry.alert`, `telemetry.plot`
+- 3) Quantum extensions (presets + algorithms): `quantum.preset`, `quantum.algorithm`
+- 4) GIS integration: `gis.convert`, `gis.map`
+- 5) Advanced math/economics + diaspora/live-history: `math.stats`, `math.diaspora`, `econ.finance`, `history.livecalc`
 
 ## Mistral Vibe agent discovery
 
