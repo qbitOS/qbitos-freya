@@ -378,6 +378,65 @@
             overflow:auto;
             white-space:pre-wrap;
         }
+        .watchface-variants{
+            margin-top:10px;
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+            gap:8px;
+        }
+        .watchface-variant{
+            border:1px solid #cbd5e1;
+            border-radius:10px;
+            background:#ffffff;
+            padding:8px;
+        }
+        .watchface-variant-k{
+            font-family:var(--font-mono);
+            font-size:0.6875rem;
+            color:#334155;
+            margin-bottom:6px;
+        }
+        .watchface-variant-s{
+            font-family:var(--font-mono);
+            font-size:0.625rem;
+            color:#64748b;
+            min-height:28px;
+            margin-bottom:6px;
+        }
+        .watchface-variant-btn{
+            border:1px solid #94a3b8;
+            background:#ffffff;
+            color:#0f172a;
+            border-radius:8px;
+            padding:5px 8px;
+            font-family:var(--font-mono);
+            font-size:0.625rem;
+            cursor:pointer;
+        }
+        .watchface-variant-btn.active{
+            border-color:#0ea5e9;
+            color:#0369a1;
+            background:rgba(14,165,233,0.1);
+        }
+        .food-grid{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+            gap:10px;
+            margin-top:10px;
+        }
+        .food-output{
+            margin-top:10px;
+            border:1px solid #cbd5e1;
+            border-radius:10px;
+            background:#ffffff;
+            padding:10px;
+            font-family:var(--font-mono);
+            font-size:0.6875rem;
+            color:#0f172a;
+            white-space:pre-wrap;
+            max-height:250px;
+            overflow:auto;
+        }
         .bracelet-lab{
             position:fixed;
             inset:0;
@@ -562,6 +621,8 @@
             <button class="nav-tab" data-tab="quantum">⚛ Quantum Nav</button>
             <button class="nav-tab" data-tab="dither">▓ Dither</button>
             <button class="nav-tab" data-tab="bracelet">⌁ Bracelet</button>
+            <button class="nav-tab" data-tab="ingredients">🥣 Ingredients</button>
+            <button class="nav-tab" data-tab="recipes">🍳 Recipes</button>
         </nav>
         <div class="quick-prompt">
             <div class="quick-prompt-title">Freya Quick Prompt (convert / recipe / list / long math)</div>
@@ -878,7 +939,101 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
         </div>
 
         <!-- ════════════════════════════════════════════ -->
-        <!-- SECTION 6: BRACELET                         -->
+        <!-- SECTION 6: INGREDIENTS                      -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section" id="sec-ingredients">
+            <div class="card card-light">
+                <div class="card-title"><span class="icon">🥣</span> Live Ingredients Analysis</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);">
+                    Track ingredients live, estimate macro/energy totals, and send the combined list to recipe batching.
+                </div>
+                <div class="food-grid">
+                    <div>
+                        <label class="convert-label">Ingredient</label>
+                        <input id="ingredient-name" type="text" placeholder="e.g. Flour">
+                    </div>
+                    <div>
+                        <label class="convert-label">Quantity</label>
+                        <input id="ingredient-qty" type="number" step="any" value="1">
+                    </div>
+                    <div>
+                        <label class="convert-label">Unit</label>
+                        <select id="ingredient-unit">
+                            <option>g</option><option>kg</option><option>ml</option><option>l</option>
+                            <option>cup</option><option>tbsp</option><option>tsp</option><option>piece</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="convert-label">kcal / unit</label>
+                        <input id="ingredient-kcal" type="number" step="any" value="0">
+                    </div>
+                    <div>
+                        <label class="convert-label">Protein / unit (g)</label>
+                        <input id="ingredient-protein" type="number" step="any" value="0">
+                    </div>
+                    <div>
+                        <label class="convert-label">Carbs / unit (g)</label>
+                        <input id="ingredient-carbs" type="number" step="any" value="0">
+                    </div>
+                    <div>
+                        <label class="convert-label">Fat / unit (g)</label>
+                        <input id="ingredient-fat" type="number" step="any" value="0">
+                    </div>
+                    <div>
+                        <label class="convert-label">Tag / note</label>
+                        <input id="ingredient-note" type="text" placeholder="optional note">
+                    </div>
+                </div>
+                <div class="quick-row" style="margin-top:10px;">
+                    <button class="quick-btn" id="ingredient-add">Add Ingredient</button>
+                    <button class="quick-btn" id="ingredient-copy">Copy List JSON</button>
+                    <button class="quick-btn" id="ingredient-clear">Clear List</button>
+                    <button class="quick-btn" id="ingredient-open-recipes">Open Recipes</button>
+                </div>
+                <div class="food-output" id="ingredient-analysis-output">Live analysis will appear here.</div>
+                <div class="food-output" id="ingredient-list-output">No ingredients yet.</div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 7: RECIPES                          -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section" id="sec-recipes">
+            <div class="card card-light">
+                <div class="card-title"><span class="icon">🍳</span> Recipes + Batch Calculator</div>
+                <div style="font-size:0.8125rem;color:var(--text-muted);">
+                    Combine items into a recipe list and scale the full batch from base servings to target servings.
+                </div>
+                <div class="food-grid">
+                    <div>
+                        <label class="convert-label">Recipe Name</label>
+                        <input id="recipe-name" type="text" value="Freya Batch Recipe">
+                    </div>
+                    <div>
+                        <label class="convert-label">Base Servings</label>
+                        <input id="recipe-base-servings" type="number" step="any" value="4">
+                    </div>
+                    <div>
+                        <label class="convert-label">Target Servings</label>
+                        <input id="recipe-target-servings" type="number" step="any" value="12">
+                    </div>
+                    <div>
+                        <label class="convert-label">Batch Factor</label>
+                        <input id="recipe-factor" type="text" value="3.00x" readonly>
+                    </div>
+                </div>
+                <div class="quick-row" style="margin-top:10px;">
+                    <button class="quick-btn" id="recipe-load-live">Load Ingredients List</button>
+                    <button class="quick-btn" id="recipe-calc-batch">Calculate Batch</button>
+                    <button class="quick-btn" id="recipe-copy-batch">Copy Batch Plan</button>
+                    <button class="quick-btn" id="recipe-open-ingredients">Open Ingredients</button>
+                </div>
+                <div class="food-output" id="recipe-batch-output">Batch output will appear here.</div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- SECTION 8: BRACELET                         -->
         <!-- ════════════════════════════════════════════ -->
         <div class="section" id="sec-bracelet">
             <div class="card card-light">
@@ -945,6 +1100,10 @@ test -x target/release/uvspeed-prefix-engine || echo "build T5 binary in parent 
                         </select>
                     </div>
                 </div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:10px;">
+                    Unit Category Variants (swap template into bracelet/watch-face submission):
+                </div>
+                <div class="watchface-variants" id="watchface-category-variants"></div>
                 <label class="convert-label" style="margin-top:10px;display:block;">Notes / Submission Brief</label>
                 <textarea id="watchface-notes" class="calc-input" style="min-height:80px;" placeholder="Describe visual direction, accessibility goals, and measurement-readout intent."></textarea>
                 <div class="quick-row" style="margin-top:10px;">
@@ -1029,26 +1188,32 @@ window.addEventListener('resize',initStarfield);
 document.getElementById('nav-tabs').addEventListener('click', e=>{
     const tab = e.target.closest('.nav-tab');
     if(!tab) return;
+    activateTab(tab.dataset.tab);
+});
+function activateTab(tabName){
+    if(!tabName) return;
     document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
     document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
-    tab.classList.add('active');
-    const secId='sec-'+tab.dataset.tab;
-    document.getElementById(secId).classList.add('active');
+    const tab = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
+    if(tab) tab.classList.add('active');
+    const secId='sec-'+tabName;
+    const sec = document.getElementById(secId);
+    if(sec) sec.classList.add('active');
     // Redraw quantum canvases when tab becomes visible (canvas can't draw while display:none)
-    if(tab.dataset.tab==='quantum'&&typeof drawQuantumCube==='function'){
+    if(tabName==='quantum'&&typeof drawQuantumCube==='function'){
         requestAnimationFrame(()=>{
             drawQuantumCube();
             if(typeof drawGeoQuantumMap==='function') drawGeoQuantumMap();
             if(typeof drawGeoVis==='function') drawGeoVis(lastGeoLat,lastGeoLng);
         });
     }
-    if(tab.dataset.tab==='codex'&&typeof drawCodexChart==='function'){
+    if(tabName==='codex'&&typeof drawCodexChart==='function'){
         requestAnimationFrame(()=>{drawCodexChart();buildCodexPanels();});
     }
-    if(tab.dataset.tab==='bracelet'&&typeof drawBraceletScale==='function'){
+    if(tabName==='bracelet'&&typeof drawBraceletScale==='function'){
         requestAnimationFrame(()=>{ drawBraceletScale(); });
     }
-});
+}
 const qpInput = document.getElementById('quick-prompt-input');
 const qpCopy = document.getElementById('quick-prompt-copy');
 const qpButtons = Array.from(document.querySelectorAll('.quick-prompt-chip[data-qmode]'));
@@ -1925,9 +2090,37 @@ const watchfaceExportBtn = document.getElementById('watchface-export-json');
 const watchfaceImportBtn = document.getElementById('watchface-import-json');
 const watchfaceImportFile = document.getElementById('watchface-import-file');
 const watchfaceClearBtn = document.getElementById('watchface-clear-board');
+const watchfaceCategoryVariantsEl = document.getElementById('watchface-category-variants');
 let watchfaceStyle = 'oled-minimal';
 let watchfaceBoard = [];
+let watchfaceUnitCategory = 'length';
 const WATCHFACE_BOARD_KEY = 'freya-watchface-board-v1';
+const INGREDIENT_LIST_KEY = 'freya-ingredient-live-v1';
+const ingredientNameEl = document.getElementById('ingredient-name');
+const ingredientQtyEl = document.getElementById('ingredient-qty');
+const ingredientUnitEl = document.getElementById('ingredient-unit');
+const ingredientKcalEl = document.getElementById('ingredient-kcal');
+const ingredientProteinEl = document.getElementById('ingredient-protein');
+const ingredientCarbsEl = document.getElementById('ingredient-carbs');
+const ingredientFatEl = document.getElementById('ingredient-fat');
+const ingredientNoteEl = document.getElementById('ingredient-note');
+const ingredientAddBtn = document.getElementById('ingredient-add');
+const ingredientCopyBtn = document.getElementById('ingredient-copy');
+const ingredientClearBtn = document.getElementById('ingredient-clear');
+const ingredientOpenRecipesBtn = document.getElementById('ingredient-open-recipes');
+const ingredientAnalysisOutputEl = document.getElementById('ingredient-analysis-output');
+const ingredientListOutputEl = document.getElementById('ingredient-list-output');
+const recipeNameEl = document.getElementById('recipe-name');
+const recipeBaseServingsEl = document.getElementById('recipe-base-servings');
+const recipeTargetServingsEl = document.getElementById('recipe-target-servings');
+const recipeFactorEl = document.getElementById('recipe-factor');
+const recipeLoadLiveBtn = document.getElementById('recipe-load-live');
+const recipeCalcBatchBtn = document.getElementById('recipe-calc-batch');
+const recipeCopyBatchBtn = document.getElementById('recipe-copy-batch');
+const recipeOpenIngredientsBtn = document.getElementById('recipe-open-ingredients');
+const recipeBatchOutputEl = document.getElementById('recipe-batch-output');
+let ingredientLiveList = [];
+let recipeItems = [];
 function setScaleReadout(log10Value, mode){
     const units = unitsForCat('length');
     const meters = Math.pow(10, log10Value);
@@ -2658,10 +2851,45 @@ function renderWatchfaceBoard(){
     }
     watchfaceBoardEl.textContent = watchfaceBoard.map((s, i)=>(
 `#${i+1} ${s.name}
-style=${s.style} | collaborator=${s.collaborator}
+style=${s.style} | category=${s.unitCategory || 'length'} | collaborator=${s.collaborator}
 palette=${s.palette} | markers=${s.markers}
 notes=${s.notes}`
     )).join('\n\n');
+}
+function renderWatchfaceCategoryVariants(){
+    if(!watchfaceCategoryVariantsEl) return;
+    watchfaceCategoryVariantsEl.innerHTML = '';
+    Object.entries(CATEGORIES).forEach(([key, cat])=>{
+        const units = unitsForCat(key);
+        const sample = units.slice(0, 3).map((u)=>u.sym).join(' · ');
+        const card = document.createElement('div');
+        card.className = 'watchface-variant';
+        card.innerHTML = `
+            <div class="watchface-variant-k" style="color:${cat.color};">${cat.icon} ${cat.name}</div>
+            <div class="watchface-variant-s">${sample || 'no units loaded'}</div>
+            <button class="watchface-variant-btn ${watchfaceUnitCategory===key?'active':''}" data-cat="${key}">Swap Template</button>
+        `;
+        const btn = card.querySelector('.watchface-variant-btn');
+        if(btn){
+            btn.addEventListener('click', ()=>{
+                watchfaceUnitCategory = key;
+                if(watchfaceNameEl && !watchfaceNameEl.value.trim()){
+                    watchfaceNameEl.value = `Freya ${cat.name} Face`;
+                }
+                if(watchfacePaletteEl && !watchfacePaletteEl.value.trim()){
+                    watchfacePaletteEl.value = `${cat.color} / oled`;
+                }
+                // Swap selected unit-category template into converter context.
+                activeCat = key;
+                const activePill = document.querySelector(`.cat-pill[data-cat="${key}"]`);
+                document.querySelectorAll('.cat-pill').forEach((p)=>p.classList.remove('active'));
+                if(activePill) activePill.classList.add('active');
+                populateSelects();
+                renderWatchfaceCategoryVariants();
+            });
+        }
+        watchfaceCategoryVariantsEl.appendChild(card);
+    });
 }
 function persistWatchfaceBoard(){
     try{
@@ -2674,7 +2902,19 @@ function restoreWatchfaceBoard(){
         if(!raw) return;
         const parsed = JSON.parse(raw);
         if(Array.isArray(parsed)){
-            watchfaceBoard = parsed.slice(0, 24);
+            watchfaceBoard = parsed
+                .filter((x)=>x && typeof x === 'object')
+                .map((x)=>({
+                    name: String(x.name || 'Untitled watch face'),
+                    collaborator: String(x.collaborator || 'unassigned'),
+                    style: String(x.style || 'oled-minimal'),
+                    unitCategory: String(x.unitCategory || 'length'),
+                    palette: String(x.palette || 'default'),
+                    markers: String(x.markers || 'major-only'),
+                    notes: String(x.notes || 'no notes'),
+                    createdAt: String(x.createdAt || new Date().toISOString()),
+                }))
+                .slice(0, 24);
         }
     }catch(_){}
 }
@@ -2684,6 +2924,7 @@ if(watchfaceAddBtn){
             name: (watchfaceNameEl?.value || '').trim() || 'Untitled watch face',
             collaborator: (watchfaceCollabEl?.value || '').trim() || 'unassigned',
             style: watchfaceStyle,
+            unitCategory: watchfaceUnitCategory,
             palette: (watchfacePaletteEl?.value || '').trim() || 'default',
             markers: watchfaceMarkersEl?.value || 'major-only',
             notes: (watchfaceNotesEl?.value || '').trim() || 'no notes',
@@ -2735,6 +2976,7 @@ if(watchfaceImportBtn && watchfaceImportFile){
                         name: String(x.name || 'Untitled watch face'),
                         collaborator: String(x.collaborator || 'unassigned'),
                         style: String(x.style || 'oled-minimal'),
+                        unitCategory: String(x.unitCategory || 'length'),
                         palette: String(x.palette || 'default'),
                         markers: String(x.markers || 'major-only'),
                         notes: String(x.notes || 'no notes'),
@@ -2756,7 +2998,166 @@ if(watchfaceClearBtn){
     });
 }
 restoreWatchfaceBoard();
+if(Array.isArray(watchfaceBoard) && watchfaceBoard.length && watchfaceBoard[0].unitCategory){
+    watchfaceUnitCategory = watchfaceBoard[0].unitCategory;
+}
+renderWatchfaceCategoryVariants();
 renderWatchfaceBoard();
+function persistIngredientList(){
+    try{
+        localStorage.setItem(INGREDIENT_LIST_KEY, JSON.stringify(ingredientLiveList));
+    }catch(_){}
+}
+function restoreIngredientList(){
+    try{
+        const raw = localStorage.getItem(INGREDIENT_LIST_KEY);
+        if(!raw) return;
+        const parsed = JSON.parse(raw);
+        if(Array.isArray(parsed)){
+            ingredientLiveList = parsed
+                .filter((x)=>x && typeof x === 'object')
+                .map((x)=>({
+                    name: String(x.name || 'Ingredient'),
+                    qty: Number(x.qty || 0),
+                    unit: String(x.unit || 'g'),
+                    kcal: Number(x.kcal || 0),
+                    protein: Number(x.protein || 0),
+                    carbs: Number(x.carbs || 0),
+                    fat: Number(x.fat || 0),
+                    note: String(x.note || ''),
+                }))
+                .slice(0, 120);
+        }
+    }catch(_){}
+}
+function ingredientTotals(){
+    return ingredientLiveList.reduce((acc, it)=>{
+        acc.kcal += it.qty * it.kcal;
+        acc.protein += it.qty * it.protein;
+        acc.carbs += it.qty * it.carbs;
+        acc.fat += it.qty * it.fat;
+        return acc;
+    }, {kcal:0, protein:0, carbs:0, fat:0});
+}
+function renderIngredientOutputs(){
+    if(ingredientListOutputEl){
+        ingredientListOutputEl.textContent = ingredientLiveList.length
+            ? ingredientLiveList.map((it, i)=>`${i+1}. ${it.name} — ${it.qty} ${it.unit} | kcal/u ${it.kcal} | P/C/F ${it.protein}/${it.carbs}/${it.fat}${it.note ? ` | ${it.note}` : ''}`).join('\n')
+            : 'No ingredients yet.';
+    }
+    if(ingredientAnalysisOutputEl){
+        const t = ingredientTotals();
+        ingredientAnalysisOutputEl.textContent =
+`items: ${ingredientLiveList.length}
+total kcal: ${t.kcal.toFixed(2)}
+protein total (g): ${t.protein.toFixed(2)}
+carbs total (g): ${t.carbs.toFixed(2)}
+fat total (g): ${t.fat.toFixed(2)}`;
+    }
+}
+function loadRecipeItemsFromLive(){
+    recipeItems = ingredientLiveList.map((it)=>({...it}));
+}
+function renderRecipeBatch(){
+    const base = Math.max(0.0001, Number(recipeBaseServingsEl?.value || 1));
+    const target = Math.max(0.0001, Number(recipeTargetServingsEl?.value || 1));
+    const factor = target / base;
+    if(recipeFactorEl) recipeFactorEl.value = `${factor.toFixed(2)}x`;
+    if(!recipeBatchOutputEl) return;
+    if(!recipeItems.length){
+        recipeBatchOutputEl.textContent = 'No recipe items loaded. Use "Load Ingredients List".';
+        return;
+    }
+    const name = (recipeNameEl?.value || '').trim() || 'Freya Batch Recipe';
+    let totalKcal = 0;
+    const lines = recipeItems.map((it, idx)=>{
+        const scaledQty = it.qty * factor;
+        const itemKcal = scaledQty * it.kcal;
+        totalKcal += itemKcal;
+        return `${idx+1}. ${it.name}: ${scaledQty.toFixed(3)} ${it.unit} (kcal ${itemKcal.toFixed(2)})`;
+    });
+    recipeBatchOutputEl.textContent =
+`recipe: ${name}
+base servings: ${base}
+target servings: ${target}
+factor: ${factor.toFixed(4)}x
+
+batch list:
+${lines.join('\n')}
+
+batch kcal total: ${totalKcal.toFixed(2)}`;
+}
+if(ingredientAddBtn){
+    ingredientAddBtn.addEventListener('click', ()=>{
+        const name = (ingredientNameEl?.value || '').trim();
+        if(!name) return;
+        const entry = {
+            name,
+            qty: Number(ingredientQtyEl?.value || 0),
+            unit: String(ingredientUnitEl?.value || 'g'),
+            kcal: Number(ingredientKcalEl?.value || 0),
+            protein: Number(ingredientProteinEl?.value || 0),
+            carbs: Number(ingredientCarbsEl?.value || 0),
+            fat: Number(ingredientFatEl?.value || 0),
+            note: String(ingredientNoteEl?.value || '').trim(),
+        };
+        ingredientLiveList.push(entry);
+        if(ingredientLiveList.length > 120) ingredientLiveList.shift();
+        persistIngredientList();
+        renderIngredientOutputs();
+    });
+}
+if(ingredientCopyBtn){
+    ingredientCopyBtn.addEventListener('click', async ()=>{
+        try{
+            await navigator.clipboard.writeText(JSON.stringify(ingredientLiveList, null, 2));
+            ingredientCopyBtn.textContent = 'Copied';
+            setTimeout(()=>{ ingredientCopyBtn.textContent = 'Copy List JSON'; }, 1200);
+        }catch(_){}
+    });
+}
+if(ingredientClearBtn){
+    ingredientClearBtn.addEventListener('click', ()=>{
+        ingredientLiveList = [];
+        persistIngredientList();
+        renderIngredientOutputs();
+    });
+}
+if(ingredientOpenRecipesBtn){
+    ingredientOpenRecipesBtn.addEventListener('click', ()=>{
+        loadRecipeItemsFromLive();
+        renderRecipeBatch();
+        activateTab('recipes');
+    });
+}
+if(recipeLoadLiveBtn){
+    recipeLoadLiveBtn.addEventListener('click', ()=>{
+        loadRecipeItemsFromLive();
+        renderRecipeBatch();
+    });
+}
+if(recipeCalcBatchBtn){
+    recipeCalcBatchBtn.addEventListener('click', ()=>{ renderRecipeBatch(); });
+}
+if(recipeCopyBatchBtn){
+    recipeCopyBatchBtn.addEventListener('click', async ()=>{
+        try{
+            await navigator.clipboard.writeText(recipeBatchOutputEl?.textContent || '');
+            recipeCopyBatchBtn.textContent = 'Copied';
+            setTimeout(()=>{ recipeCopyBatchBtn.textContent = 'Copy Batch Plan'; }, 1200);
+        }catch(_){}
+    });
+}
+if(recipeOpenIngredientsBtn){
+    recipeOpenIngredientsBtn.addEventListener('click', ()=>{ activateTab('ingredients'); });
+}
+if(recipeBaseServingsEl){ recipeBaseServingsEl.addEventListener('input', renderRecipeBatch); }
+if(recipeTargetServingsEl){ recipeTargetServingsEl.addEventListener('input', renderRecipeBatch); }
+if(recipeNameEl){ recipeNameEl.addEventListener('input', renderRecipeBatch); }
+restoreIngredientList();
+renderIngredientOutputs();
+loadRecipeItemsFromLive();
+renderRecipeBatch();
 
 /* ═══════════════════════════════════════════════════
    CALCULATOR (mathjs + KaTeX)
